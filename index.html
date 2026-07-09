@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>World Market Inventory Assistant</title>
+<title>World Market Expiry Tracker</title>
 <style>
   :root{
     --bg:#f4efe6; --card:#fffdf8; --ink:#2c2419; --muted:#8a7d6a;
@@ -35,7 +35,7 @@
     color:var(--muted);font-weight:700;padding:0 6px 6px;border-bottom:1px solid var(--line)}
   td{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}
   tr:last-child td{border-bottom:0}
-  td.sku{font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+  td.sku{font-variant-numeric:tabular-nums;white-space:nowrap}
   td.exp{white-space:nowrap}
   .soon{color:#9a2f14;font-weight:600}
   .none{color:var(--muted)}
@@ -48,7 +48,7 @@
 </style>
 </head>
 <body>
-<header><h1>World Market Inventory</h1></header>
+<header><h1>World Market Expiry Tracker</h1></header>
 <div class="wrap">
 
   <div class="card">
@@ -66,11 +66,6 @@
   </div>
 
   <div class="card">
-    <h2>Inventory adjustments <span class="badge" id="ac">0</span></h2>
-    <div id="adjust"><div class="empty">Nothing yet.</div></div>
-  </div>
-
-  <div class="card">
     <div class="tools">
       <button onclick="emailBoss()">&#9993;&#65039; Email</button>
       <button onclick="downloadCSV()">&#11015;&#65039; CSV</button>
@@ -84,13 +79,19 @@
 </div>
 <script>
 /* ============ storage ============ */
-const LS='wm_inventory_v2';
-let db={expiry:[],adjust:[]};
-function load(){try{var s=JSON.parse(localStorage.getItem(LS));if(s)db=s;}catch(e){}
-  db.expiry=db.expiry||[];db.adjust=db.adjust||[];}
+const LS='wm_expiry_v1';
+let db={expiry:[]};
+function load(){
+  try{var s=JSON.parse(localStorage.getItem(LS));if(s&&s.expiry)db=s;}catch(e){}
+  // migrate old combined store if present
+  if(!db.expiry||!db.expiry.length){
+    try{var old=JSON.parse(localStorage.getItem('wm_inventory_v2'));if(old&&old.expiry&&old.expiry.length){db.expiry=old.expiry;}}catch(e){}
+  }
+  db.expiry=db.expiry||[];
+}
 function save(){localStorage.setItem(LS,JSON.stringify(db));}
 
-/* ============ status line ============ */
+/* ============ status ============ */
 function setStatus(t,err){var s=document.getElementById('status');s.textContent=t;s.className=err?'err':'';}
 
 /* ============ date parsing ============ */
@@ -140,7 +141,6 @@ function extractSku(text){
       return {sku:g, rest:text.slice(0,mm.index)+' '+text.slice(mm.index+mm[0].length)};
     }
   }
-  // also a lone 5-6 digit run with no neighbours
   m=text.match(/\b(\d{5,6})\b/);
   if(m){return {sku:m[1],rest:text.replace(m[0],' ')};}
   return {sku:'',rest:text};
@@ -149,7 +149,7 @@ function extractSku(text){
 /* ============ name ============ */
 const COMMAND=new Set(['add','put','please','mark','log','record','the','a','an','to','on',
  'of','for','list','needs','need','item','this','that','it','my','and','is','be','make','got',
- 'have','change','changed','adjust','adjustment','update','recount','count','box']);
+ 'have','box','expires','expire','expiry','exp']);
 function cleanName(text){
   return text.replace(/[^\w\s\-'&]/g,' ').split(/\s+/)
     .filter(function(w){return w && !COMMAND.has(w.toLowerCase());})
@@ -160,20 +160,13 @@ function cleanName(text){
 function run(raw){
   raw=(raw||'').trim();if(!raw)return;
   document.getElementById('cmd').value='';
-  var wantsExpiry=/expir|best\s*by|\bbb\b|use\s*by/i.test(raw);
   var dr=extractDate(raw);
   var sr=extractSku(dr.rest);
   var name=cleanName(sr.rest);
-  var action=(dr.date||wantsExpiry)?'expiry':'adjust';
   var label=name || (sr.sku?('SKU '+sr.sku):'');
   if(!label){setStatus('Need a product name or SKU.',true);return;}
-  if(action==='expiry'){
-    db.expiry.push({sku:sr.sku,name:label,exp:(dr.date?dr.date.iso:''),expDisp:(dr.date?dr.date.disp:''),t:new Date().toLocaleString()});
-    setStatus('\u2713 Expiring: '+label+(sr.sku?' \u00b7 '+sr.sku:'')+(dr.date?' \u00b7 '+dr.date.disp:' \u00b7 no date'));
-  } else {
-    db.adjust.push({sku:sr.sku,name:label,t:new Date().toLocaleString()});
-    setStatus('\u2713 Adjustment: '+label+(sr.sku?' \u00b7 '+sr.sku:''));
-  }
+  db.expiry.push({sku:sr.sku,name:label,exp:(dr.date?dr.date.iso:''),expDisp:(dr.date?dr.date.disp:''),t:new Date().toLocaleString()});
+  setStatus('\u2713 '+label+(sr.sku?' \u00b7 '+sr.sku:'')+(dr.date?' \u00b7 '+dr.date.disp:' \u00b7 no date'));
   save();render();
 }
 
@@ -192,7 +185,7 @@ if(SR){
     if(interim)setStatus('\ud83c\udfa4 '+interim);
   };
   rec.onerror=function(e){
-    if(e.error==='no-speech'||e.error==='aborted')return; // keep going
+    if(e.error==='no-speech'||e.error==='aborted')return;
     setStatus('Mic: '+e.error+' (allow microphone access)',true);
   };
   rec.onend=function(){ if(live){ try{rec.start();}catch(e){} } else { micUI(); } };
@@ -208,7 +201,7 @@ function micUI(){var b=document.getElementById('micBtn');
   b.classList.toggle('live',live);
   b.textContent=live?'\u23f9 Listening\u2026 tap to stop':'\ud83c\udfa4 Start voice input';}
 
-/* ============ render (tables) ============ */
+/* ============ render ============ */
 function daysTo(iso){if(!iso)return null;var d=new Date(iso+'T00:00:00');return Math.round((d-midnight(new Date()))/86400000);}
 function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function render(){
@@ -221,46 +214,34 @@ function render(){
       var x=o.x,dd=daysTo(x.exp);
       var exp=x.expDisp?('<span'+(dd!=null&&dd<=14?' class="soon"':'')+'>'+x.expDisp+(dd!=null?' \u00b7 '+dd+'d':'')+'</span>'):'<span class="none">\u2014</span>';
       return '<tr><td>'+esc(x.name)+'</td><td class="sku">'+(x.sku||'<span class="none">\u2014</span>')+'</td><td class="exp">'+exp+
-        '</td><td class="x"><button class="del" onclick="rm(\'expiry\','+o.i+')">\u2715</button></td></tr>';
+        '</td><td class="x"><button class="del" onclick="rm('+o.i+')">\u2715</button></td></tr>';
     }).join('');
     ex.innerHTML='<table><thead><tr><th>Item</th><th>SKU</th><th>Expires</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>';
   } else ex.innerHTML='<div class="empty">Nothing yet.</div>';
-
-  var aj=document.getElementById('adjust');
-  if(db.adjust.length){
-    var arows=db.adjust.map(function(x,i){
-      return '<tr><td>'+esc(x.name)+'</td><td class="sku">'+(x.sku||'<span class="none">\u2014</span>')+
-        '</td><td class="x"><button class="del" onclick="rm(\'adjust\','+i+')">\u2715</button></td></tr>';
-    }).join('');
-    aj.innerHTML='<table><thead><tr><th>Item</th><th>SKU</th><th></th></tr></thead><tbody>'+arows+'</tbody></table>';
-  } else aj.innerHTML='<div class="empty">Nothing yet.</div>';
-
   document.getElementById('ec').textContent=db.expiry.length;
-  document.getElementById('ac').textContent=db.adjust.length;
 }
-function rm(list,i){db[list].splice(i,1);save();render();}
+function rm(i){db.expiry.splice(i,1);save();render();}
 
 /* ============ export ============ */
 function sortedExpiry(){return db.expiry.slice().sort(function(a,b){
   if(!a.exp&&!b.exp)return 0;if(!a.exp)return 1;if(!b.exp)return -1;return a.exp<b.exp?-1:1;});}
 function csv(){
-  var s='',exs=sortedExpiry();
-  if(exs.length){s+='EXPIRING (soonest first)\nItem,SKU,Expires,Logged\n';
-    exs.forEach(function(x){s+='"'+x.name+'",'+(x.sku||'')+','+(x.expDisp||'')+',"'+x.t+'"\n';});s+='\n';}
-  if(db.adjust.length){s+='INVENTORY ADJUSTMENTS NEEDED\nItem,SKU,Logged\n';
-    db.adjust.forEach(function(x){s+='"'+x.name+'",'+(x.sku||'')+',"'+x.t+'"\n';});}
-  return s||'No entries yet.';
+  var exs=sortedExpiry();
+  if(!exs.length)return 'No entries yet.';
+  var s='EXPIRING (soonest first)\nItem,SKU,Expires,Logged\n';
+  exs.forEach(function(x){s+='"'+x.name+'",'+(x.sku||'')+','+(x.expDisp||'')+',"'+x.t+'"\n';});
+  return s;
 }
 function copyData(){navigator.clipboard.writeText(csv()).then(function(){setStatus('\ud83d\udccb Copied to clipboard.');});}
 function downloadCSV(){var b=new Blob([csv()],{type:'text/csv'}),u=URL.createObjectURL(b),a=document.createElement('a');
-  a.href=u;a.download='worldmarket_'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(u);}
+  a.href=u;a.download='worldmarket_expiry_'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(u);}
 function emailBoss(){var body=encodeURIComponent(csv());
-  var subj=encodeURIComponent('World Market Inventory \u2014 '+new Date().toLocaleDateString());
+  var subj=encodeURIComponent('World Market Expiry \u2014 '+new Date().toLocaleDateString());
   window.location.href='mailto:?subject='+subj+'&body='+body;}
 function backup(){var b=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');
-  a.href=u;a.download='worldmarket_backup.json';a.click();URL.revokeObjectURL(u);}
+  a.href=u;a.download='worldmarket_expiry_backup.json';a.click();URL.revokeObjectURL(u);}
 function restore(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();
-  r.onload=function(){try{db=JSON.parse(r.result);db.expiry=db.expiry||[];db.adjust=db.adjust||[];save();render();setStatus('\ud83d\udcbe Restored.');}catch(err){setStatus('Bad backup file.',true);}};
+  r.onload=function(){try{var j=JSON.parse(r.result);db.expiry=j.expiry||[];save();render();setStatus('\ud83d\udcbe Restored.');}catch(err){setStatus('Bad backup file.',true);}};
   r.readAsText(f);}
 
 /* ============ init ============ */
