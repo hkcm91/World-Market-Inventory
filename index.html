@@ -107,7 +107,7 @@
 const LS='wm_inventory_v2';
 let db={expiry:[],adjust:[]};
 let mode='auto';
-function load(){try{const s=JSON.parse(localStorage.getItem(LS));if(s)db=s;}catch(e){}
+function load(){try{var s=JSON.parse(localStorage.getItem(LS));if(s)db=s;}catch(e){}
   db.expiry=db.expiry||[];db.adjust=db.adjust||[];}
 function save(){localStorage.setItem(LS,JSON.stringify(db));}
 
@@ -161,24 +161,6 @@ function extractDate(text){
   return {date:found,rest:rest};
 }
 
-/* ================= quantity parsing ================= */
-const NUMWORDS={zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12};
-function w2n(s){return s in NUMWORDS?NUMWORDS[s]:(/^\d+$/.test(s)?+s:null);}
-function extractQty(text){
-  var t=text,oldQ=null,newQ=null,matched=null;
-  var m=t.match(/(?:from|for)?\s*([a-z0-9]+)\s+to\s+([a-z0-9]+)/i);
-  if(m&&w2n(m[1].toLowerCase())!=null&&w2n(m[2].toLowerCase())!=null){
-    oldQ=w2n(m[1].toLowerCase());newQ=w2n(m[2].toLowerCase());matched=m[0];
-  } else {
-    m=t.match(/\b(?:change to|set to|adjust to|make it|to|=)\s*([a-z0-9]+)/i);
-    if(m&&w2n(m[1].toLowerCase())!=null){newQ=w2n(m[1].toLowerCase());matched=m[0];}
-  }
-  var isAdjust=(newQ!=null)||/\b(change|adjust|count|set|update|recount)\b/i.test(t);
-  var rest=t;if(matched)rest=t.replace(matched,' ');
-  rest=rest.replace(/\b(change|adjust|adjustment|count|recount|set|update|inventory|qty|quantity)\b/ig,' ');
-  return {oldQ:oldQ,newQ:newQ,isAdjust:isAdjust,rest:rest};
-}
-
 /* ================= sku + name ================= */
 function extractSku(text){
   var m=text.match(/\bsku\s*#?\s*([a-z0-9\-]{3,})/i);
@@ -188,40 +170,37 @@ function extractSku(text){
   return {sku:'',rest:text};
 }
 const COMMAND=new Set(['add','put','please','mark','log','record','the','a','an','to','on',
- 'of','for','list','needs','need','item','this','that','it','my','and','is','be','make','got','have']);
+ 'of','for','list','needs','need','item','this','that','it','my','and','is','be','make','got',
+ 'have','change','changed','adjust','adjustment','update','recount','count']);
 function cleanName(text){
   return text.replace(/[^\w\s\-'&]/g,' ').split(/\s+/)
     .filter(function(w){return w && !COMMAND.has(w.toLowerCase());})
     .join(' ').replace(/\s+/g,' ').trim();
 }
 
-/* ================= run (order-independent, no catalog) ================= */
+/* ================= run ================= */
 function run(raw){
   raw=(raw||'').trim();if(!raw)return;
   document.getElementById('cmd').value='';
   say(raw,'user');
 
   var wantsExpiry=/expir|best\s*by|\bbb\b|use\s*by/i.test(raw);
+  var wantsAdjust=/\b(change|adjust|recount|count|needs?\s+(?:to\s+be\s+)?adjust)/i.test(raw);
   var dr=extractDate(raw);
-  var qr=extractQty(dr.rest);
-  var sr=extractSku(qr.rest);
+  var sr=extractSku(dr.rest);
   var name=cleanName(sr.rest);
 
   var action;
   if(mode!=='auto'){action=mode;}
-  else if(qr.isAdjust && !dr.date){action='adjust';}
   else if(dr.date||wantsExpiry){action='expiry';}
-  else if(qr.isAdjust){action='adjust';}
-  else{action='expiry';}
+  else{action='adjust';}
 
   var label=name || (sr.sku?('SKU '+sr.sku):'');
   if(!label){say('\u2753 I need at least a product name or a SKU.');return;}
 
   if(action==='adjust'){
-    db.adjust.push({sku:sr.sku,name:label,oldQ:(qr.oldQ!=null?qr.oldQ:''),
-      newQ:(qr.newQ!=null?qr.newQ:''),t:new Date().toLocaleString()});
-    say('\u2705 Adjustment: <b>'+label+'</b>'+(sr.sku?' ('+sr.sku+')':'')+' '+
-      (qr.oldQ!=null?qr.oldQ:'?')+' \u2192 '+(qr.newQ!=null?qr.newQ:'?'));
+    db.adjust.push({sku:sr.sku,name:label,t:new Date().toLocaleString()});
+    say('\u2705 Needs adjustment: <b>'+label+'</b>'+(sr.sku?' ('+sr.sku+')':''));
   } else {
     db.expiry.push({sku:sr.sku,name:label,exp:(dr.date?dr.date.iso:''),
       expDisp:(dr.date?dr.date.disp:''),t:new Date().toLocaleString()});
@@ -264,7 +243,7 @@ function render(){
   var aj=document.getElementById('adjust');
   aj.innerHTML=db.adjust.length?db.adjust.map(function(x,i){
     return '<div class="item"><button class="del" onclick="rm(\'adjust\','+i+')">\u2715</button>'+
-      '<b>'+x.name+'</b><br><small>'+(x.sku||'no sku')+' \u00b7 '+x.oldQ+' \u2192 '+x.newQ+'</small></div>';
+      '<b>'+x.name+'</b><br><small>'+(x.sku||'no sku')+'</small></div>';
   }).join(''):'<div class="empty">Nothing yet.</div>';
 
   document.getElementById('ec').textContent=db.expiry.length;
@@ -279,8 +258,8 @@ function csv(){
   var s='',exs=sortedExpiry();
   if(exs.length){s+='EXPIRY LIST (soonest first)\nProduct,SKU,Expires,Logged\n';
     exs.forEach(function(x){s+='"'+x.name+'",'+(x.sku||'')+','+(x.expDisp||'')+',"'+x.t+'"\n';});s+='\n';}
-  if(db.adjust.length){s+='INVENTORY ADJUSTMENTS\nProduct,SKU,Old,New,Logged\n';
-    db.adjust.forEach(function(x){s+='"'+x.name+'",'+(x.sku||'')+','+x.oldQ+','+x.newQ+',"'+x.t+'"\n';});}
+  if(db.adjust.length){s+='INVENTORY ADJUSTMENTS NEEDED\nProduct,SKU,Logged\n';
+    db.adjust.forEach(function(x){s+='"'+x.name+'",'+(x.sku||'')+',"'+x.t+'"\n';});}
   return s||'No entries yet.';
 }
 function copyData(){navigator.clipboard.writeText(csv()).then(function(){say('\ud83d\udccb Copied \u2014 paste into Excel or email.');});}
@@ -298,7 +277,7 @@ function restore(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();
 /* ================= init ================= */
 document.getElementById('cmd').addEventListener('keydown',function(e){if(e.key==='Enter')run(e.target.value);});
 load();render();
-say('Ready. Just say the item however it comes out \u2014 <b>"654182 Italian Adventure box expires Aug 12"</b> or <b>"Toblerone 8 to 2"</b>. A date makes it an expiry, an <i>X to Y</i> makes it an adjustment. Use the buttons above to force a list if you want.');
+say('Ready. Say the item however it comes out \u2014 <b>"654182 Italian Adventure box expires Aug 12"</b> for expiry, or just <b>"Toblerone 654182"</b> to flag it for an inventory adjustment. A date sends it to the expiry list; anything else goes to adjustments. Use the buttons above to force a list.');
 </script>
 </body>
 </html>
