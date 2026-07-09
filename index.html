@@ -13,74 +13,55 @@
   *{box-sizing:border-box}
   body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     background:var(--bg);color:var(--ink);-webkit-tap-highlight-color:transparent}
-  header{padding:16px 18px;background:var(--accent);color:#fff}
-  header h1{margin:0;font-size:19px;letter-spacing:.2px}
-  header p{margin:3px 0 0;font-size:12px;opacity:.9}
+  header{padding:14px 18px;background:var(--accent);color:#fff}
+  header h1{margin:0;font-size:18px}
   .wrap{max-width:820px;margin:0 auto;padding:14px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
     padding:14px;margin-bottom:14px;box-shadow:var(--shadow)}
-  .card h2{margin:0 0 10px;font-size:15px;display:flex;align-items:center;
-    justify-content:space-between}
-  .badge{background:var(--line);color:var(--muted);font-size:11px;
-    padding:2px 8px;border-radius:20px;font-weight:600}
-  #chat{height:250px;overflow-y:auto;padding:8px;background:#faf6ee;
-    border:1px solid var(--line);border-radius:10px;font-size:13.5px}
-  .msg{margin:6px 0;display:flex}
-  .msg.user{justify-content:flex-end}
-  .bubble{padding:8px 11px;border-radius:12px;max-width:82%;line-height:1.38}
-  .user .bubble{background:var(--accent);color:#fff;border-bottom-right-radius:3px}
-  .bot .bubble{background:#efe7d7;color:var(--ink);border-bottom-left-radius:3px}
-  .row{display:flex;gap:8px;margin-top:10px}
-  input[type=text]{width:100%;padding:11px;border:1px solid var(--line);
+  .card h2{margin:0 0 10px;font-size:15px;display:flex;align-items:center;justify-content:space-between}
+  .badge{background:var(--line);color:var(--muted);font-size:11px;padding:2px 8px;border-radius:20px;font-weight:600}
+  .row{display:flex;gap:8px}
+  input[type=text]{width:100%;padding:12px;border:1px solid var(--line);
     border-radius:10px;font-size:15px;background:#fff;color:var(--ink)}
-  button{border:0;border-radius:10px;padding:11px 14px;font-size:14px;font-weight:600;
-    cursor:pointer;color:#fff;background:var(--ink)}
-  button:disabled{opacity:.4}
+  button{border:0;border-radius:10px;padding:12px 14px;font-size:14px;font-weight:600;cursor:pointer;color:#fff;background:var(--ink)}
   .send{background:var(--accent2)}
-  .mode{display:flex;gap:8px;margin-top:10px}
-  .mode button{flex:1;background:#fff;color:var(--muted);border:1px solid var(--line);font-size:13px}
-  .mode button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
-  .mic{background:var(--accent);width:100%;margin-top:8px;font-size:15px;padding:13px}
+  #status{margin-top:9px;font-size:13px;min-height:18px;color:var(--accent2)}
+  #status.err{color:#9a2f14}
+  .mic{background:var(--accent);width:100%;margin-top:10px;font-size:15px;padding:14px}
   .mic.live{background:#8f2f18;animation:pulse 1.2s infinite}
-  @keyframes pulse{50%{opacity:.7}}
-  .item{padding:8px;border-bottom:1px solid var(--line);font-size:13px}
-  .item:last-child{border:0}
-  .item b{font-weight:600}
-  .item small{color:var(--muted)}
-  .date-tag{display:inline-block;background:#f0e6d2;color:#8a5a1a;font-size:11px;
-    padding:1px 7px;border-radius:20px;margin-left:6px;font-weight:600}
-  .date-tag.soon{background:#f6d9cf;color:#9a2f14}
-  .del{background:none;color:#b0502f;padding:2px 6px;font-size:12px;float:right}
-  .tools{display:flex;gap:8px;flex-wrap:wrap}
-  .tools button{flex:1;min-width:130px;background:var(--gold)}
-  .tools .ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  @keyframes pulse{50%{opacity:.65}}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;
+    color:var(--muted);font-weight:700;padding:0 6px 6px;border-bottom:1px solid var(--line)}
+  td{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  td.sku{font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+  td.exp{white-space:nowrap}
+  .soon{color:#9a2f14;font-weight:600}
+  .none{color:var(--muted)}
+  td.x{width:26px;text-align:right}
+  .del{background:none;color:#b0502f;padding:2px 4px;font-size:14px}
   .empty{color:var(--muted);font-size:13px;padding:6px}
+  .tools{display:flex;gap:8px;flex-wrap:wrap}
+  .tools button{flex:1;min-width:120px;background:var(--gold)}
+  .tools .ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
 </style>
 </head>
 <body>
-<header>
-  <h1>World Market Inventory Assistant</h1>
-  <p>Food section &middot; say it in any order &middot; voice + keyboard</p>
-</header>
+<header><h1>World Market Inventory</h1></header>
 <div class="wrap">
 
   <div class="card">
-    <h2>Assistant</h2>
-    <div id="chat"></div>
     <div class="row">
-      <input id="cmd" type="text" placeholder='e.g. "654182 Italian Adventure box expires Aug 12"'>
-      <button class="send" onclick="run(cmd.value)">Send</button>
+      <input id="cmd" type="text" placeholder='Say or type: "654178 Korean candy box expires Aug 29"'>
+      <button class="send" onclick="run(cmd.value)">Add</button>
     </div>
-    <div class="mode">
-      <button id="mAuto" class="on" onclick="setMode('auto')">Auto</button>
-      <button id="mExp" onclick="setMode('expiry')">Expiry</button>
-      <button id="mAdj" onclick="setMode('adjust')">Adjustment</button>
-    </div>
+    <div id="status"></div>
     <button id="micBtn" class="mic" onclick="toggleMic()">&#127908; Start voice input</button>
   </div>
 
   <div class="card">
-    <h2>Expiry list <span class="badge" id="ec">0</span></h2>
+    <h2>Expiring <span class="badge" id="ec">0</span></h2>
     <div id="expiry"><div class="empty">Nothing yet.</div></div>
   </div>
 
@@ -90,12 +71,11 @@
   </div>
 
   <div class="card">
-    <h2>Export</h2>
     <div class="tools">
-      <button onclick="emailBoss()">&#9993;&#65039; Email to boss</button>
-      <button onclick="downloadCSV()">&#11015;&#65039; Download CSV</button>
+      <button onclick="emailBoss()">&#9993;&#65039; Email</button>
+      <button onclick="downloadCSV()">&#11015;&#65039; CSV</button>
       <button class="ghost" onclick="copyData()">&#128203; Copy</button>
-      <button class="ghost" onclick="backup()">&#128190; Backup JSON</button>
+      <button class="ghost" onclick="backup()">&#128190; Backup</button>
       <button class="ghost" onclick="fileIn.click()">&#128193; Restore</button>
       <input id="fileIn" type="file" accept=".json" style="display:none" onchange="restore(event)">
     </div>
@@ -103,30 +83,17 @@
 
 </div>
 <script>
-/* ================= storage ================= */
+/* ============ storage ============ */
 const LS='wm_inventory_v2';
 let db={expiry:[],adjust:[]};
-let mode='auto';
 function load(){try{var s=JSON.parse(localStorage.getItem(LS));if(s)db=s;}catch(e){}
   db.expiry=db.expiry||[];db.adjust=db.adjust||[];}
 function save(){localStorage.setItem(LS,JSON.stringify(db));}
 
-/* ================= chat ================= */
-const chat=document.getElementById('chat');
-function say(text,who){
-  who=who||'bot';
-  var m=document.createElement('div');m.className='msg '+who;
-  var b=document.createElement('div');b.className='bubble';b.innerHTML=text;
-  m.appendChild(b);chat.appendChild(m);chat.scrollTop=chat.scrollHeight;
-}
+/* ============ status line ============ */
+function setStatus(t,err){var s=document.getElementById('status');s.textContent=t;s.className=err?'err':'';}
 
-/* ================= mode ================= */
-function setMode(x){mode=x;
-  document.getElementById('mAuto').classList.toggle('on',x==='auto');
-  document.getElementById('mExp').classList.toggle('on',x==='expiry');
-  document.getElementById('mAdj').classList.toggle('on',x==='adjust');}
-
-/* ================= date parsing ================= */
+/* ============ date parsing ============ */
 const MONTHS={january:0,jan:0,february:1,feb:1,march:2,mar:2,april:3,apr:3,may:4,
  june:5,jun:5,july:6,jul:6,august:7,aug:7,september:8,sep:8,sept:8,october:9,oct:9,
  november:10,nov:10,december:11,dec:11};
@@ -161,123 +128,144 @@ function extractDate(text){
   return {date:found,rest:rest};
 }
 
-/* ================= sku + name ================= */
+/* ============ sku (5-6 digits, strip separators) ============ */
+function digitsOnly(s){return s.replace(/\D/g,'');}
 function extractSku(text){
-  var m=text.match(/\bsku\s*#?\s*([a-z0-9\-]{3,})/i);
-  if(m){return {sku:m[1].toUpperCase(),rest:text.replace(m[0],' ')};}
-  m=text.match(/\b(\d{4,})\b/);
+  var m=text.match(/\bsku\s*#?\s*([\d\-\s]{5,10})/i);
+  if(m){var d=digitsOnly(m[1]);if(d.length>=5&&d.length<=6){return {sku:d,rest:text.replace(m[0],' ')};}}
+  var re=/\d[\d\-\s]*\d/g, mm;
+  while((mm=re.exec(text))!==null){
+    var g=digitsOnly(mm[0]);
+    if(g.length===5||g.length===6){
+      return {sku:g, rest:text.slice(0,mm.index)+' '+text.slice(mm.index+mm[0].length)};
+    }
+  }
+  // also a lone 5-6 digit run with no neighbours
+  m=text.match(/\b(\d{5,6})\b/);
   if(m){return {sku:m[1],rest:text.replace(m[0],' ')};}
   return {sku:'',rest:text};
 }
+
+/* ============ name ============ */
 const COMMAND=new Set(['add','put','please','mark','log','record','the','a','an','to','on',
  'of','for','list','needs','need','item','this','that','it','my','and','is','be','make','got',
- 'have','change','changed','adjust','adjustment','update','recount','count']);
+ 'have','change','changed','adjust','adjustment','update','recount','count','box']);
 function cleanName(text){
   return text.replace(/[^\w\s\-'&]/g,' ').split(/\s+/)
     .filter(function(w){return w && !COMMAND.has(w.toLowerCase());})
     .join(' ').replace(/\s+/g,' ').trim();
 }
 
-/* ================= run ================= */
+/* ============ run ============ */
 function run(raw){
   raw=(raw||'').trim();if(!raw)return;
   document.getElementById('cmd').value='';
-  say(raw,'user');
-
   var wantsExpiry=/expir|best\s*by|\bbb\b|use\s*by/i.test(raw);
-  var wantsAdjust=/\b(change|adjust|recount|count|needs?\s+(?:to\s+be\s+)?adjust)/i.test(raw);
   var dr=extractDate(raw);
   var sr=extractSku(dr.rest);
   var name=cleanName(sr.rest);
-
-  var action;
-  if(mode!=='auto'){action=mode;}
-  else if(dr.date||wantsExpiry){action='expiry';}
-  else{action='adjust';}
-
+  var action=(dr.date||wantsExpiry)?'expiry':'adjust';
   var label=name || (sr.sku?('SKU '+sr.sku):'');
-  if(!label){say('\u2753 I need at least a product name or a SKU.');return;}
-
-  if(action==='adjust'){
-    db.adjust.push({sku:sr.sku,name:label,t:new Date().toLocaleString()});
-    say('\u2705 Needs adjustment: <b>'+label+'</b>'+(sr.sku?' ('+sr.sku+')':''));
+  if(!label){setStatus('Need a product name or SKU.',true);return;}
+  if(action==='expiry'){
+    db.expiry.push({sku:sr.sku,name:label,exp:(dr.date?dr.date.iso:''),expDisp:(dr.date?dr.date.disp:''),t:new Date().toLocaleString()});
+    setStatus('\u2713 Expiring: '+label+(sr.sku?' \u00b7 '+sr.sku:'')+(dr.date?' \u00b7 '+dr.date.disp:' \u00b7 no date'));
   } else {
-    db.expiry.push({sku:sr.sku,name:label,exp:(dr.date?dr.date.iso:''),
-      expDisp:(dr.date?dr.date.disp:''),t:new Date().toLocaleString()});
-    say('\u2705 Expiry: <b>'+label+'</b>'+(sr.sku?' ('+sr.sku+')':'')+
-      (dr.date?' \u2014 expires <b>'+dr.date.disp+'</b>':' \u2014 <i>no date</i>'));
+    db.adjust.push({sku:sr.sku,name:label,t:new Date().toLocaleString()});
+    setStatus('\u2713 Adjustment: '+label+(sr.sku?' \u00b7 '+sr.sku:''));
   }
   save();render();
 }
 
-/* ================= voice ================= */
+/* ============ voice (continuous until Stop) ============ */
 var rec=null,live=false;
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 if(SR){
-  rec=new SR();rec.lang='en-US';rec.continuous=false;rec.interimResults=false;
-  rec.onresult=function(e){run(e.results[0][0].transcript);};
-  rec.onend=function(){live=false;micUI();};
-  rec.onerror=function(e){live=false;micUI();say('\u26a0\ufe0f Mic error: '+e.error+' (allow microphone access).');};
+  rec=new SR();rec.lang='en-US';rec.continuous=true;rec.interimResults=true;
+  rec.onresult=function(e){
+    var interim='';
+    for(var i=e.resultIndex;i<e.results.length;i++){
+      var r=e.results[i];
+      if(r.isFinal){run(r[0].transcript);}
+      else{interim+=r[0].transcript;}
+    }
+    if(interim)setStatus('\ud83c\udfa4 '+interim);
+  };
+  rec.onerror=function(e){
+    if(e.error==='no-speech'||e.error==='aborted')return; // keep going
+    setStatus('Mic: '+e.error+' (allow microphone access)',true);
+  };
+  rec.onend=function(){ if(live){ try{rec.start();}catch(e){} } else { micUI(); } };
 }else{
-  document.getElementById('micBtn').disabled=true;
-  document.getElementById('micBtn').textContent='\ud83c\udfa4 Voice not supported here';
+  var mb=document.getElementById('micBtn');mb.disabled=true;mb.textContent='\ud83c\udfa4 Voice not supported here';
 }
-function toggleMic(){if(!rec)return;if(live){rec.stop();}else{try{rec.start();live=true;micUI();}catch(e){}}}
+function toggleMic(){
+  if(!rec)return;
+  if(live){live=false;rec.stop();}
+  else{live=true;micUI();try{rec.start();}catch(e){}}
+}
 function micUI(){var b=document.getElementById('micBtn');
-  b.classList.toggle('live',live);b.textContent=live?'\u23f9 Listening\u2026 tap to stop':'\ud83c\udfa4 Start voice input';}
+  b.classList.toggle('live',live);
+  b.textContent=live?'\u23f9 Listening\u2026 tap to stop':'\ud83c\udfa4 Start voice input';}
 
-/* ================= render ================= */
+/* ============ render (tables) ============ */
 function daysTo(iso){if(!iso)return null;var d=new Date(iso+'T00:00:00');return Math.round((d-midnight(new Date()))/86400000);}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 function render(){
   var exs=db.expiry.map(function(x,i){return {x:x,i:i};}).sort(function(a,b){
     if(!a.x.exp&&!b.x.exp)return 0;if(!a.x.exp)return 1;if(!b.x.exp)return -1;
     return a.x.exp<b.x.exp?-1:(a.x.exp>b.x.exp?1:0);});
   var ex=document.getElementById('expiry');
-  ex.innerHTML=exs.length?exs.map(function(o){
-    var x=o.x,dd=daysTo(x.exp);
-    var tag=x.expDisp?'<span class="date-tag'+(dd!=null&&dd<=14?' soon':'')+'">'+x.expDisp+(dd!=null?' \u00b7 '+dd+'d':'')+'</span>':'';
-    return '<div class="item"><button class="del" onclick="rm(\'expiry\','+o.i+')">\u2715</button>'+
-      '<b>'+x.name+'</b>'+tag+'<br><small>'+(x.sku||'no sku')+'</small></div>';
-  }).join(''):'<div class="empty">Nothing yet.</div>';
+  if(exs.length){
+    var rows=exs.map(function(o){
+      var x=o.x,dd=daysTo(x.exp);
+      var exp=x.expDisp?('<span'+(dd!=null&&dd<=14?' class="soon"':'')+'>'+x.expDisp+(dd!=null?' \u00b7 '+dd+'d':'')+'</span>'):'<span class="none">\u2014</span>';
+      return '<tr><td>'+esc(x.name)+'</td><td class="sku">'+(x.sku||'<span class="none">\u2014</span>')+'</td><td class="exp">'+exp+
+        '</td><td class="x"><button class="del" onclick="rm(\'expiry\','+o.i+')">\u2715</button></td></tr>';
+    }).join('');
+    ex.innerHTML='<table><thead><tr><th>Item</th><th>SKU</th><th>Expires</th><th></th></tr></thead><tbody>'+rows+'</tbody></table>';
+  } else ex.innerHTML='<div class="empty">Nothing yet.</div>';
 
   var aj=document.getElementById('adjust');
-  aj.innerHTML=db.adjust.length?db.adjust.map(function(x,i){
-    return '<div class="item"><button class="del" onclick="rm(\'adjust\','+i+')">\u2715</button>'+
-      '<b>'+x.name+'</b><br><small>'+(x.sku||'no sku')+'</small></div>';
-  }).join(''):'<div class="empty">Nothing yet.</div>';
+  if(db.adjust.length){
+    var arows=db.adjust.map(function(x,i){
+      return '<tr><td>'+esc(x.name)+'</td><td class="sku">'+(x.sku||'<span class="none">\u2014</span>')+
+        '</td><td class="x"><button class="del" onclick="rm(\'adjust\','+i+')">\u2715</button></td></tr>';
+    }).join('');
+    aj.innerHTML='<table><thead><tr><th>Item</th><th>SKU</th><th></th></tr></thead><tbody>'+arows+'</tbody></table>';
+  } else aj.innerHTML='<div class="empty">Nothing yet.</div>';
 
   document.getElementById('ec').textContent=db.expiry.length;
   document.getElementById('ac').textContent=db.adjust.length;
 }
 function rm(list,i){db[list].splice(i,1);save();render();}
 
-/* ================= export ================= */
+/* ============ export ============ */
 function sortedExpiry(){return db.expiry.slice().sort(function(a,b){
   if(!a.exp&&!b.exp)return 0;if(!a.exp)return 1;if(!b.exp)return -1;return a.exp<b.exp?-1:1;});}
 function csv(){
   var s='',exs=sortedExpiry();
-  if(exs.length){s+='EXPIRY LIST (soonest first)\nProduct,SKU,Expires,Logged\n';
+  if(exs.length){s+='EXPIRING (soonest first)\nItem,SKU,Expires,Logged\n';
     exs.forEach(function(x){s+='"'+x.name+'",'+(x.sku||'')+','+(x.expDisp||'')+',"'+x.t+'"\n';});s+='\n';}
-  if(db.adjust.length){s+='INVENTORY ADJUSTMENTS NEEDED\nProduct,SKU,Logged\n';
+  if(db.adjust.length){s+='INVENTORY ADJUSTMENTS NEEDED\nItem,SKU,Logged\n';
     db.adjust.forEach(function(x){s+='"'+x.name+'",'+(x.sku||'')+',"'+x.t+'"\n';});}
   return s||'No entries yet.';
 }
-function copyData(){navigator.clipboard.writeText(csv()).then(function(){say('\ud83d\udccb Copied \u2014 paste into Excel or email.');});}
+function copyData(){navigator.clipboard.writeText(csv()).then(function(){setStatus('\ud83d\udccb Copied to clipboard.');});}
 function downloadCSV(){var b=new Blob([csv()],{type:'text/csv'}),u=URL.createObjectURL(b),a=document.createElement('a');
-  a.href=u;a.download='worldmarket_inventory_'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(u);}
+  a.href=u;a.download='worldmarket_'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(u);}
 function emailBoss(){var body=encodeURIComponent(csv());
   var subj=encodeURIComponent('World Market Inventory \u2014 '+new Date().toLocaleDateString());
   window.location.href='mailto:?subject='+subj+'&body='+body;}
 function backup(){var b=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');
   a.href=u;a.download='worldmarket_backup.json';a.click();URL.revokeObjectURL(u);}
 function restore(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();
-  r.onload=function(){try{db=JSON.parse(r.result);db.expiry=db.expiry||[];db.adjust=db.adjust||[];save();render();say('\ud83d\udcbe Restored from backup.');}catch(err){alert('Bad file');}};
+  r.onload=function(){try{db=JSON.parse(r.result);db.expiry=db.expiry||[];db.adjust=db.adjust||[];save();render();setStatus('\ud83d\udcbe Restored.');}catch(err){setStatus('Bad backup file.',true);}};
   r.readAsText(f);}
 
-/* ================= init ================= */
+/* ============ init ============ */
 document.getElementById('cmd').addEventListener('keydown',function(e){if(e.key==='Enter')run(e.target.value);});
 load();render();
-say('Ready. Say the item however it comes out \u2014 <b>"654182 Italian Adventure box expires Aug 12"</b> for expiry, or just <b>"Toblerone 654182"</b> to flag it for an inventory adjustment. A date sends it to the expiry list; anything else goes to adjustments. Use the buttons above to force a list.');
 </script>
 </body>
 </html>
