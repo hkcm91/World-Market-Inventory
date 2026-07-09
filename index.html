@@ -43,8 +43,9 @@
   .del{background:none;color:#b0502f;padding:2px 4px;font-size:14px}
   .empty{color:var(--muted);font-size:13px;padding:6px}
   .tools{display:flex;gap:8px;flex-wrap:wrap}
-  .tools button{flex:1;min-width:120px;background:var(--gold)}
+  .tools button{flex:1;min-width:110px;background:var(--gold)}
   .tools .ghost{background:#fff;color:var(--ink);border:1px solid var(--line)}
+  .tools .danger{background:#fff;color:#9a2f14;border:1px solid #e6c3ba}
 </style>
 </head>
 <body>
@@ -72,6 +73,7 @@
       <button class="ghost" onclick="copyData()">&#128203; Copy</button>
       <button class="ghost" onclick="backup()">&#128190; Backup</button>
       <button class="ghost" onclick="fileIn.click()">&#128193; Restore</button>
+      <button class="danger" onclick="clearAll()">&#128465;&#65039; Clear all</button>
       <input id="fileIn" type="file" accept=".json" style="display:none" onchange="restore(event)">
     </div>
   </div>
@@ -83,7 +85,6 @@ const LS='wm_expiry_v1';
 let db={expiry:[]};
 function load(){
   try{var s=JSON.parse(localStorage.getItem(LS));if(s&&s.expiry)db=s;}catch(e){}
-  // migrate old combined store if present
   if(!db.expiry||!db.expiry.length){
     try{var old=JSON.parse(localStorage.getItem('wm_inventory_v2'));if(old&&old.expiry&&old.expiry.length){db.expiry=old.expiry;}}catch(e){}
   }
@@ -156,7 +157,7 @@ function cleanName(text){
     .join(' ').replace(/\s+/g,' ').trim();
 }
 
-/* ============ run ============ */
+/* ============ run (one entry per call) ============ */
 function run(raw){
   raw=(raw||'').trim();if(!raw)return;
   document.getElementById('cmd').value='';
@@ -170,8 +171,18 @@ function run(raw){
   save();render();
 }
 
-/* ============ voice (continuous until Stop) ============ */
-var rec=null,live=false;
+/* ============ voice: continuous, ONE row per pause ============ */
+var rec=null, live=false, buffer='', silenceTimer=null;
+var SILENCE_MS=1800;
+function scheduleCommit(){
+  if(silenceTimer)clearTimeout(silenceTimer);
+  silenceTimer=setTimeout(commitBuffer,SILENCE_MS);
+}
+function commitBuffer(){
+  if(silenceTimer){clearTimeout(silenceTimer);silenceTimer=null;}
+  var b=buffer.trim();buffer='';
+  if(b)run(b);
+}
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 if(SR){
   rec=new SR();rec.lang='en-US';rec.continuous=true;rec.interimResults=true;
@@ -179,10 +190,12 @@ if(SR){
     var interim='';
     for(var i=e.resultIndex;i<e.results.length;i++){
       var r=e.results[i];
-      if(r.isFinal){run(r[0].transcript);}
+      if(r.isFinal){buffer+=' '+r[0].transcript;}
       else{interim+=r[0].transcript;}
     }
-    if(interim)setStatus('\ud83c\udfa4 '+interim);
+    var preview=(buffer+' '+interim).trim();
+    if(preview)setStatus('\ud83c\udfa4 '+preview+' \u2026');
+    scheduleCommit();            // reset the pause timer on ANY speech; commit only after silence
   };
   rec.onerror=function(e){
     if(e.error==='no-speech'||e.error==='aborted')return;
@@ -194,12 +207,12 @@ if(SR){
 }
 function toggleMic(){
   if(!rec)return;
-  if(live){live=false;rec.stop();}
-  else{live=true;micUI();try{rec.start();}catch(e){}}
+  if(live){ live=false; commitBuffer(); rec.stop(); }
+  else{ live=true; buffer=''; micUI(); setStatus('Listening \u2014 say one item, then pause.'); try{rec.start();}catch(e){} }
 }
 function micUI(){var b=document.getElementById('micBtn');
   b.classList.toggle('live',live);
-  b.textContent=live?'\u23f9 Listening\u2026 tap to stop':'\ud83c\udfa4 Start voice input';}
+  b.textContent=live?'\u23f9 Listening\u2026 pause between items \u00b7 tap to stop':'\ud83c\udfa4 Start voice input';}
 
 /* ============ render ============ */
 function daysTo(iso){if(!iso)return null;var d=new Date(iso+'T00:00:00');return Math.round((d-midnight(new Date()))/86400000);}
@@ -221,6 +234,12 @@ function render(){
   document.getElementById('ec').textContent=db.expiry.length;
 }
 function rm(i){db.expiry.splice(i,1);save();render();}
+function clearAll(){
+  if(!db.expiry.length){setStatus('Already empty.');return;}
+  if(confirm('Clear all '+db.expiry.length+' items? This cannot be undone.')){
+    db.expiry=[];save();render();setStatus('Cleared.');
+  }
+}
 
 /* ============ export ============ */
 function sortedExpiry(){return db.expiry.slice().sort(function(a,b){
