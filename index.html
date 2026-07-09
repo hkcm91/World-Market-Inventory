@@ -23,14 +23,13 @@
     justify-content:space-between}
   .badge{background:var(--line);color:var(--muted);font-size:11px;
     padding:2px 8px;border-radius:20px;font-weight:600}
-  #chat{height:210px;overflow-y:auto;padding:8px;background:#faf6ee;
+  #chat{height:230px;overflow-y:auto;padding:8px;background:#faf6ee;
     border:1px solid var(--line);border-radius:10px;font-size:13.5px}
   .msg{margin:6px 0;display:flex}
   .msg.user{justify-content:flex-end}
-  .bubble{padding:8px 11px;border-radius:12px;max-width:80%;line-height:1.35}
+  .bubble{padding:8px 11px;border-radius:12px;max-width:82%;line-height:1.38}
   .user .bubble{background:var(--accent);color:#fff;border-bottom-right-radius:3px}
   .bot .bubble{background:#efe7d7;color:var(--ink);border-bottom-left-radius:3px}
-  .hint{color:var(--muted);font-size:12.5px}
   .row{display:flex;gap:8px;margin-top:10px}
   input[type=text],input[type=number],select{width:100%;padding:11px;border:1px solid var(--line);
     border-radius:10px;font-size:15px;background:#fff;color:var(--ink)}
@@ -44,10 +43,14 @@
   .cands{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
   .cands button{background:#fff;color:var(--accent);border:1px solid var(--accent);
     font-size:12px;padding:6px 9px}
+  .cands button.alt{color:var(--accent2);border-color:var(--accent2)}
   .item{padding:8px;border-bottom:1px solid var(--line);font-size:13px}
   .item:last-child{border:0}
   .item b{font-weight:600}
   .item small{color:var(--muted)}
+  .date-tag{display:inline-block;background:#f0e6d2;color:#8a5a1a;font-size:11px;
+    padding:1px 7px;border-radius:20px;margin-left:6px;font-weight:600}
+  .date-tag.soon{background:#f6d9cf;color:#9a2f14}
   .del{background:none;color:#b0502f;padding:2px 6px;font-size:12px;float:right}
   .tools{display:flex;gap:8px;flex-wrap:wrap}
   .tools button{flex:1;min-width:130px;background:var(--gold)}
@@ -60,7 +63,7 @@
 <body>
 <header>
   <h1>World Market Inventory Assistant</h1>
-  <p>Food section &middot; voice + keyboard &middot; SKUs matched automatically</p>
+  <p>Food section &middot; say it in any order &middot; SKUs &amp; dates matched automatically</p>
 </header>
 <div class="wrap">
 
@@ -68,7 +71,7 @@
     <h2>Assistant</h2>
     <div id="chat"></div>
     <div class="row">
-      <input id="cmd" type="text" placeholder='e.g. "add Ghirardelli squares to expiry" or "Coca Cola from 10 to 0"'>
+      <input id="cmd" type="text" placeholder='e.g. "654182 Italian Adventure box expires Aug 12" or "Coca Cola 10 to 0"'>
       <button class="send" onclick="run(cmd.value)">Send</button>
     </div>
     <button id="micBtn" class="mic" onclick="toggleMic()">&#127908; Start voice input</button>
@@ -103,7 +106,7 @@
       <input id="pName" type="text" placeholder="Product name">
       <select id="pCat">
         <option>Candy</option><option>Drinks</option><option>Cookies</option>
-        <option>Snacks</option><option>Savories</option>
+        <option>Snacks</option><option>Savories</option><option>Uncategorized</option>
       </select>
       <button onclick="addProduct()">Add</button>
     </div>
@@ -112,7 +115,7 @@
 
 </div>
 <script>
-/* ---------- storage ---------- */
+/* ================= storage ================= */
 const LS='wm_inventory_v1';
 let db={products:[],expiry:[],adjust:[]};
 const seed=[
@@ -131,24 +134,24 @@ const seed=[
 ];
 function load(){
   try{const s=JSON.parse(localStorage.getItem(LS));if(s)db=s;}catch(e){}
-  if(!db.products||!db.products.length){
-    db.products=seed.map(([sku,name,cat])=>({sku,name,cat}));
-  }
+  if(!db.products||!db.products.length){db.products=seed.map(a=>({sku:a[0],name:a[1],cat:a[2]}));}
   db.expiry=db.expiry||[];db.adjust=db.adjust||[];
 }
 function save(){localStorage.setItem(LS,JSON.stringify(db));}
 
-/* ---------- chat ---------- */
+/* ================= chat ================= */
 const chat=document.getElementById('chat');
-function say(text,who='bot',cands){
+function say(text,who,buttons){
+  who=who||'bot';
   const m=document.createElement('div');m.className='msg '+who;
   const b=document.createElement('div');b.className='bubble';b.innerHTML=text;
-  if(cands&&cands.length){
+  if(buttons&&buttons.length){
     const c=document.createElement('div');c.className='cands';
-    cands.forEach(p=>{
+    buttons.forEach(function(bt){
       const btn=document.createElement('button');
-      btn.textContent=p.name.length>28?p.name.slice(0,28)+'\u2026':p.name;
-      btn.onclick=()=>{c.parentElement.removeChild(c);commit(p,window._pending);};
+      if(bt.alt)btn.className='alt';
+      btn.textContent=bt.label;
+      btn.onclick=function(){c.parentElement.removeChild(c);bt.fn();};
       c.appendChild(btn);
     });
     b.appendChild(c);
@@ -156,107 +159,253 @@ function say(text,who='bot',cands){
   m.appendChild(b);chat.appendChild(m);chat.scrollTop=chat.scrollHeight;
 }
 
-/* ---------- parsing ---------- */
+/* ================= date parsing ================= */
+const MONTHS={january:0,jan:0,february:1,feb:1,march:2,mar:2,april:3,apr:3,may:4,
+ june:5,jun:5,july:6,jul:6,august:7,aug:7,september:8,sep:8,sept:8,october:9,oct:9,
+ november:10,nov:10,december:11,dec:11};
+function midnight(d){return new Date(d.getFullYear(),d.getMonth(),d.getDate());}
+function fmtDate(d){
+  const iso=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const disp=d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+  return {iso:iso,disp:disp};
+}
+/* returns {date:{iso,disp}|null, rest:string} */
+function extractDate(text){
+  var t=text, now=new Date(), today=midnight(now), found=null, matched=null;
+  if(/\btoday\b/i.test(t)){found=fmtDate(today);matched=/\btoday\b/i;}
+  else if(/\btomorrow\b/i.test(t)){var d=new Date(today);d.setDate(d.getDate()+1);found=fmtDate(d);matched=/\btomorrow\b/i;}
+  else{
+    var m=t.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?(?:,?\s*(\d{4}))?/i);
+    if(m){
+      var mo=MONTHS[m[1].toLowerCase()], day=+m[2], yr=m[3]?+m[3]:now.getFullYear();
+      var dd=new Date(yr,mo,day);
+      if(!m[3]&&dd<today)dd=new Date(yr+1,mo,day);
+      found=fmtDate(dd);matched=m[0];
+    } else {
+      m=t.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?/i);
+      if(m){
+        var mo2=MONTHS[m[2].toLowerCase()], day2=+m[1], dd2=new Date(now.getFullYear(),mo2,day2);
+        if(dd2<today)dd2=new Date(now.getFullYear()+1,mo2,day2);
+        found=fmtDate(dd2);matched=m[0];
+      } else {
+        m=t.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+        if(m){
+          var mo3=+m[1]-1, day3=+m[2], yr3=m[3]?(+m[3]<100?2000+ +m[3]:+m[3]):now.getFullYear();
+          var dd3=new Date(yr3,mo3,day3);
+          if(!m[3]&&dd3<today)dd3=new Date(yr3+1,mo3,day3);
+          found=fmtDate(dd3);matched=m[0];
+        }
+      }
+    }
+  }
+  var rest=t;
+  if(matched){
+    rest=t.replace(matched,' ');
+    // strip leftover expiry keywords / connectors around the date
+    rest=rest.replace(/\b(expires?|expiration|expiry|exp|best\s*by|bb|use\s*by|on|by)\b/ig,' ');
+  }
+  return {date:found, rest:rest};
+}
+
+/* ================= quantity parsing ================= */
+/* returns {oldQ,newQ,isAdjust,rest} ; order-flexible */
 const NUMWORDS={zero:0,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9,ten:10,eleven:11,twelve:12};
+function w2n(s){return s in NUMWORDS?NUMWORDS[s]:(/^\d+$/.test(s)?+s:null);}
+function extractQty(text){
+  var t=text, oldQ=null, newQ=null, matched=null;
+  var m=t.match(/(?:from|for)?\s*([a-z0-9]+)\s+to\s+([a-z0-9]+)/i);
+  if(m && w2n(m[1].toLowerCase())!=null && w2n(m[2].toLowerCase())!=null){
+    oldQ=w2n(m[1].toLowerCase());newQ=w2n(m[2].toLowerCase());matched=m[0];
+  } else {
+    m=t.match(/\b(?:to|=|change to|set to|adjust to|make it)\s*([a-z0-9]+)/i);
+    if(m && w2n(m[1].toLowerCase())!=null){newQ=w2n(m[1].toLowerCase());matched=m[0];}
+  }
+  var isAdjust = (newQ!=null) || /\b(change|adjust|count|set|update|recount)\b/i.test(t);
+  var rest=t;
+  if(matched)rest=t.replace(matched,' ');
+  rest=rest.replace(/\b(change|adjust|adjustment|count|recount|set|update|inventory|qty|quantity)\b/ig,' ');
+  return {oldQ:oldQ,newQ:newQ,isAdjust:isAdjust,rest:rest};
+}
+
+/* ================= sku parsing ================= */
+function norm(s){return s.toLowerCase().replace(/[^a-z0-9]/g,'');}
+/* returns {sku, product|null, rest} */
+function extractSku(text){
+  var nt=norm(text);
+  // 1) any encyclopedia SKU embedded in the command
+  var hit=null;
+  for(var i=0;i<db.products.length;i++){
+    var ps=norm(db.products[i].sku);
+    if(ps.length>=3 && nt.indexOf(ps)!==-1){hit=db.products[i];break;}
+  }
+  if(hit){
+    var re=new RegExp(hit.sku.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i');
+    return {sku:hit.sku, product:hit, rest:text.replace(re,' ')};
+  }
+  // 2) a bare number that looks like a SKU (4+ digits)
+  var m=text.match(/\b(\d{4,})\b/);
+  if(m){return {sku:m[1], product:null, rest:text.replace(m[0],' ')};}
+  return {sku:null, product:null, rest:text};
+}
+
+/* ================= name matching ================= */
 const STOP=new Set(['add','put','please','to','the','on','a','an','list','expiry','expire',
  'expires','expired','expiration','needs','need','change','changed','changes','adjust',
  'adjustment','from','for','inventory','count','set','update','quantity','qty','of','is',
- 'be','make','mark','it','this','that','and','my','we','i','have','got','can','you','item']);
-
-function toNum(t){return t in NUMWORDS?NUMWORDS[t]:(/^\d+$/.test(t)?+t:null);}
-
-function parse(raw){
-  const text=' '+raw.toLowerCase().trim()+' ';
-  const isExpiry=/expir/.test(text);
-  let oldQ=null,newQ=null;
-  let m=text.match(/(?:from|for)\s+([a-z0-9]+)\s+to\s+([a-z0-9]+)/);
-  if(m){oldQ=toNum(m[1]);newQ=toNum(m[2]);}
-  else{m=text.match(/\bto\s+([a-z0-9]+)\b/);if(m&&toNum(m[1])!=null)newQ=toNum(m[1]);}
-  const isAdjust=!isExpiry && (newQ!=null || /change|adjust|count|set|update/.test(text));
-  const words=raw.toLowerCase().replace(/[^\w\s]/g,' ').split(/\s+/)
-    .filter(w=>w&&!STOP.has(w)&&toNum(w)==null);
-  return {action:isExpiry?'expiry':(isAdjust?'adjust':'expiry'),oldQ,newQ,query:words};
+ 'be','make','mark','it','this','that','and','my','we','i','have','got','can','you','item',
+ 'box','exp','bb','use','by','best','sku']);
+function nameTokens(text){
+  return text.toLowerCase().replace(/[^\w\s]/g,' ').split(/\s+/)
+    .filter(function(w){return w && !STOP.has(w) && w2n(w)==null;});
 }
-
-/* ---------- matching ---------- */
-function match(qWords,rawText){
-  const raw=(rawText||'').toLowerCase();
-  const skuHit=db.products.find(p=>raw.includes(p.sku.toLowerCase()));
-  if(skuHit)return{best:[skuHit],top:skuHit,score:99};
-  const scored=db.products.map(p=>{
-    const nameTokens=p.name.toLowerCase().split(/\s+/);
-    let s=0;
-    qWords.forEach(q=>{
-      if(nameTokens.some(nt=>nt===q)) s+=2;
-      else if(nameTokens.some(nt=>nt.includes(q)||q.includes(nt))) s+=1;
+function matchName(tokens){
+  if(!tokens.length)return {top:null,cands:[],clear:false};
+  var scored=db.products.map(function(p){
+    var nts=p.name.toLowerCase().split(/\s+/), s=0;
+    tokens.forEach(function(q){
+      if(nts.some(function(n){return n===q;}))s+=2;
+      else if(nts.some(function(n){return n.indexOf(q)!==-1||q.indexOf(n)!==-1;}))s+=1;
     });
-    return{p,s};
-  }).filter(x=>x.s>0).sort((a,b)=>b.s-a.s);
-  if(!scored.length)return{best:[],top:null,score:0};
-  const topScore=scored[0].s;
-  const near=scored.filter(x=>x.s>=topScore-1).slice(0,3).map(x=>x.p);
-  return{best:near,top:scored[0].p,score:topScore,clear:near.length===1||scored.length===1};
+    return {p:p,s:s};
+  }).filter(function(x){return x.s>0;}).sort(function(a,b){return b.s-a.s;});
+  if(!scored.length)return {top:null,cands:[],clear:false};
+  var top=scored[0].s;
+  var cands=scored.filter(function(x){return x.s>=top-1;}).slice(0,3).map(function(x){return x.p;});
+  return {top:scored[0].p, cands:cands, clear:(cands.length===1||scored.length===1)};
 }
 
-/* ---------- run a command ---------- */
+/* ================= run a command (order-independent) ================= */
 function run(raw){
   raw=(raw||'').trim();if(!raw)return;
   document.getElementById('cmd').value='';
   say(raw,'user');
-  const p=parse(raw);
-  if(!p.query.length){say("I didn't catch a product name \u2014 try again with the item name or SKU.");return;}
-  const r=match(p.query,raw);
-  if(!r.top){say('\u274c No match for that. Add it to the encyclopedia below, then try again.');return;}
-  const pending={action:p.action,oldQ:p.oldQ,newQ:p.newQ};
-  if(r.score>=99||r.clear){commit(r.top,pending);return;}
-  window._pending=pending;
-  say('\ud83e\udd14 Which one did you mean?','bot',r.best);
+
+  var wantsExpiry=/expir|best\s*by|\bbb\b|use\s*by/i.test(raw);
+
+  var dr=extractDate(raw);
+  var qr=extractQty(dr.rest);
+  var sr=extractSku(qr.rest);
+  var nmeTokens=nameTokens(sr.rest);
+  var nm=matchName(nmeTokens);
+
+  // decide action: adjustment if a quantity/adjust intent is present and no date
+  var action = (qr.isAdjust && !dr.date) ? 'adjust' : ((dr.date||wantsExpiry) ? 'expiry' : (qr.isAdjust ? 'adjust' : 'expiry'));
+
+  var pending={action:action, oldQ:qr.oldQ, newQ:qr.newQ, date:dr.date,
+    rawSku:sr.sku, rawName:sr.rest.replace(/\s+/g,' ').trim()};
+
+  // product resolution
+  var product = sr.product || null;               // SKU hit in encyclopedia wins
+  if(!product && nm.top && nm.clear) product=nm.top;
+
+  if(product){ commit(product,pending); return; }
+
+  if(nm.top && nm.cands.length){                  // ambiguous name -> ask
+    window._pending=pending;
+    var btns=nm.cands.map(function(p){return {label:(p.name.length>26?p.name.slice(0,26)+'\u2026':p.name), fn:function(){commit(p,pending);}};});
+    say('\ud83e\udd14 Which one?','bot',btns);
+    return;
+  }
+
+  // nothing in the encyclopedia matched -- keep everything the user said
+  var label = pending.rawName || (pending.rawSku?('SKU '+pending.rawSku):'');
+  if(!label){ say('\u2753 I got a command but no product \u2014 include a name or SKU.'); return; }
+
+  commitLoose(pending);
+  offerSave(pending);
 }
 
-function commit(prod,pending){
-  if(pending.action==='adjust'){
-    db.adjust.push({sku:prod.sku,name:prod.name,cat:prod.cat,
-      oldQ:pending.oldQ??'',newQ:pending.newQ??'',t:new Date().toLocaleString()});
-    say('\u2705 Adjustment: <b>'+prod.name+'</b> ('+prod.sku+') '+(pending.oldQ??'?')+' \u2192 '+(pending.newQ??'?'));
-  }else{
-    db.expiry.push({sku:prod.sku,name:prod.name,cat:prod.cat,t:new Date().toLocaleString()});
-    say('\u2705 Added to expiry: <b>'+prod.name+'</b> ('+prod.sku+')');
+/* commit against a known encyclopedia product */
+function commit(prod,p){
+  if(p.action==='adjust'){
+    db.adjust.push({sku:prod.sku,name:prod.name,cat:prod.cat,oldQ:(p.oldQ!=null?p.oldQ:''),
+      newQ:(p.newQ!=null?p.newQ:''),t:new Date().toLocaleString()});
+    say('\u2705 Adjustment: <b>'+prod.name+'</b> ('+prod.sku+') '+(p.oldQ!=null?p.oldQ:'?')+' \u2192 '+(p.newQ!=null?p.newQ:'?'));
+  } else {
+    db.expiry.push({sku:prod.sku,name:prod.name,cat:prod.cat,
+      exp:(p.date?p.date.iso:''),expDisp:(p.date?p.date.disp:''),t:new Date().toLocaleString()});
+    say('\u2705 Expiry: <b>'+prod.name+'</b> ('+prod.sku+')'+(p.date?' \u2014 expires <b>'+p.date.disp+'</b>':' \u2014 <i>no date given</i>'));
   }
   save();render();
 }
 
-/* ---------- voice ---------- */
-let rec=null,live=false;
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+/* commit when the item isn't in the encyclopedia yet (nothing lost) */
+function commitLoose(p){
+  var name=p.rawName || ('SKU '+p.rawSku);
+  if(p.action==='adjust'){
+    db.adjust.push({sku:(p.rawSku||''),name:name,cat:'Uncategorized',oldQ:(p.oldQ!=null?p.oldQ:''),
+      newQ:(p.newQ!=null?p.newQ:''),t:new Date().toLocaleString()});
+    say('\u2705 Adjustment logged: <b>'+name+'</b>'+(p.rawSku?' ('+p.rawSku+')':'')+' '+(p.oldQ!=null?p.oldQ:'?')+' \u2192 '+(p.newQ!=null?p.newQ:'?'));
+  } else {
+    db.expiry.push({sku:(p.rawSku||''),name:name,cat:'Uncategorized',
+      exp:(p.date?p.date.iso:''),expDisp:(p.date?p.date.disp:''),t:new Date().toLocaleString()});
+    say('\u2705 Expiry logged: <b>'+name+'</b>'+(p.rawSku?' ('+p.rawSku+')':'')+(p.date?' \u2014 expires <b>'+p.date.disp+'</b>':''));
+  }
+  save();render();
+}
+
+/* offer to remember an unknown item in the encyclopedia */
+function offerSave(p){
+  var name=p.rawName || '';
+  var sku=p.rawSku || '';
+  if(!name && !sku) return;
+  say("Not in the encyclopedia yet \u2014 want me to remember it?", 'bot', [
+    {label:'\u2795 Save to encyclopedia', fn:function(){
+      var n=name || prompt('Product name?','')||'';
+      var s=sku || prompt('SKU?','')||'';
+      if(!n && !s){return;}
+      db.products.push({sku:s,name:n||('SKU '+s),cat:'Uncategorized'});
+      save();render();
+      say('\ud83d\udcd8 Saved <b>'+(n||('SKU '+s))+'</b>'+(s?' ('+s+')':'')+' \u2014 set its category below anytime.');
+    }},
+    {label:'No thanks', alt:true, fn:function(){say('Okay \u2014 left it off the encyclopedia.');}}
+  ]);
+}
+
+/* ================= voice ================= */
+var rec=null, live=false;
+var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 if(SR){
   rec=new SR();rec.lang='en-US';rec.continuous=false;rec.interimResults=false;
-  rec.onresult=e=>{const t=e.results[0][0].transcript;run(t);};
-  rec.onend=()=>{live=false;micUI();};
-  rec.onerror=e=>{live=false;micUI();say('\u26a0\ufe0f Mic error: '+e.error+' (allow microphone access; HTTPS/GitHub Pages works best).');};
+  rec.onresult=function(e){run(e.results[0][0].transcript);};
+  rec.onend=function(){live=false;micUI();};
+  rec.onerror=function(e){live=false;micUI();say('\u26a0\ufe0f Mic error: '+e.error+' (allow microphone access).');};
 }else{
   document.getElementById('micBtn').disabled=true;
-  document.getElementById('micBtn').textContent='\ud83c\udfa4 Voice not supported in this browser';
+  document.getElementById('micBtn').textContent='\ud83c\udfa4 Voice not supported here';
 }
 function toggleMic(){if(!rec)return;if(live){rec.stop();}else{try{rec.start();live=true;micUI();}catch(e){}}}
-function micUI(){const b=document.getElementById('micBtn');
+function micUI(){var b=document.getElementById('micBtn');
   b.classList.toggle('live',live);b.textContent=live?'\u23f9 Listening\u2026 tap to stop':'\ud83c\udfa4 Start voice input';}
 
-/* ---------- render ---------- */
+/* ================= render ================= */
+function daysTo(iso){if(!iso)return null;var d=new Date(iso+'T00:00:00');return Math.round((d-midnight(new Date()))/86400000);}
 function render(){
-  const ex=document.getElementById('expiry');
-  ex.innerHTML=db.expiry.length?db.expiry.map((x,i)=>
-    '<div class="item"><button class="del" onclick="rm(\'expiry\','+i+')">\u2715</button>'+
-    '<b>'+x.name+'</b><br><small>'+x.sku+' \u00b7 '+x.cat+'</small></div>').join('')
-    :'<div class="empty">Nothing yet.</div>';
-  const aj=document.getElementById('adjust');
-  aj.innerHTML=db.adjust.length?db.adjust.map((x,i)=>
-    '<div class="item"><button class="del" onclick="rm(\'adjust\','+i+')">\u2715</button>'+
-    '<b>'+x.name+'</b><br><small>'+x.sku+' \u00b7 '+x.oldQ+' \u2192 '+x.newQ+'</small></div>').join('')
-    :'<div class="empty">Nothing yet.</div>';
-  const pl=document.getElementById('plist');
-  pl.innerHTML=db.products.map((p,i)=>
-    '<div class="item"><button class="del" onclick="rmProduct('+i+')">\u2715</button>'+
-    '<b>'+p.name+'</b><br><small>'+p.sku+' \u00b7 '+p.cat+'</small></div>').join('');
+  // expiry sorted soonest-first (undated last)
+  var exs=db.expiry.map(function(x,i){return {x:x,i:i};}).sort(function(a,b){
+    if(!a.x.exp&&!b.x.exp)return 0; if(!a.x.exp)return 1; if(!b.x.exp)return -1;
+    return a.x.exp<b.x.exp?-1:(a.x.exp>b.x.exp?1:0);
+  });
+  var ex=document.getElementById('expiry');
+  ex.innerHTML=exs.length?exs.map(function(o){
+    var x=o.x, dd=daysTo(x.exp);
+    var tag = x.expDisp ? '<span class="date-tag'+(dd!=null&&dd<=14?' soon':'')+'">'+x.expDisp+(dd!=null?' \u00b7 '+dd+'d':'')+'</span>' : '';
+    return '<div class="item"><button class="del" onclick="rm(\'expiry\','+o.i+')">\u2715</button>'+
+      '<b>'+x.name+'</b>'+tag+'<br><small>'+(x.sku||'no sku')+' \u00b7 '+x.cat+'</small></div>';
+  }).join(''):'<div class="empty">Nothing yet.</div>';
+
+  var aj=document.getElementById('adjust');
+  aj.innerHTML=db.adjust.length?db.adjust.map(function(x,i){
+    return '<div class="item"><button class="del" onclick="rm(\'adjust\','+i+')">\u2715</button>'+
+      '<b>'+x.name+'</b><br><small>'+(x.sku||'no sku')+' \u00b7 '+x.oldQ+' \u2192 '+x.newQ+'</small></div>';
+  }).join(''):'<div class="empty">Nothing yet.</div>';
+
+  var pl=document.getElementById('plist');
+  pl.innerHTML=db.products.map(function(p,i){
+    return '<div class="item"><button class="del" onclick="rmProduct('+i+')">\u2715</button>'+
+      '<b>'+p.name+'</b><br><small>'+p.sku+' \u00b7 '+p.cat+'</small></div>';
+  }).join('');
+
   document.getElementById('ec').textContent=db.expiry.length;
   document.getElementById('ac').textContent=db.adjust.length;
   document.getElementById('pc').textContent=db.products.length;
@@ -264,49 +413,52 @@ function render(){
 function rm(list,i){db[list].splice(i,1);save();render();}
 function rmProduct(i){db.products.splice(i,1);save();render();}
 function addProduct(){
-  const sku=pSku.value.trim(),name=pName.value.trim(),cat=pCat.value;
+  var sku=pSku.value.trim(), name=pName.value.trim(), cat=pCat.value;
   if(!sku||!name){alert('SKU and name required');return;}
-  db.products.push({sku,name,cat});save();render();
+  db.products.push({sku:sku,name:name,cat:cat});save();render();
   pSku.value='';pName.value='';pName.focus();
 }
 
-/* ---------- export ---------- */
+/* ================= export ================= */
+function sortedExpiry(){
+  return db.expiry.slice().sort(function(a,b){
+    if(!a.exp&&!b.exp)return 0; if(!a.exp)return 1; if(!b.exp)return -1;
+    return a.exp<b.exp?-1:1;
+  });
+}
 function csv(){
-  let s='';
-  if(db.expiry.length){s+='EXPIRY LIST\nProduct,SKU,Category,Time\n';
-    db.expiry.forEach(x=>s+='"'+x.name+'",'+x.sku+','+x.cat+',"'+x.t+'"\n');s+='\n';}
-  if(db.adjust.length){s+='INVENTORY ADJUSTMENTS\nProduct,SKU,Category,Old,New,Time\n';
-    db.adjust.forEach(x=>s+='"'+x.name+'",'+x.sku+','+x.cat+','+x.oldQ+','+x.newQ+',"'+x.t+'"\n');}
+  var s='';
+  var exs=sortedExpiry();
+  if(exs.length){s+='EXPIRY LIST (soonest first)\nProduct,SKU,Category,Expires,Logged\n';
+    exs.forEach(function(x){s+='"'+x.name+'",'+(x.sku||'')+','+x.cat+','+(x.expDisp||'')+',"'+x.t+'"\n';});s+='\n';}
+  if(db.adjust.length){s+='INVENTORY ADJUSTMENTS\nProduct,SKU,Category,Old,New,Logged\n';
+    db.adjust.forEach(function(x){s+='"'+x.name+'",'+(x.sku||'')+','+x.cat+','+x.oldQ+','+x.newQ+',"'+x.t+'"\n';});}
   return s||'No entries yet.';
 }
-function copyData(){navigator.clipboard.writeText(csv()).then(()=>say('\ud83d\udccb Copied \u2014 paste into Excel or email.'));}
+function copyData(){navigator.clipboard.writeText(csv()).then(function(){say('\ud83d\udccb Copied \u2014 paste into Excel or email.');});}
 function downloadCSV(){
-  const b=new Blob([csv()],{type:'text/csv'});const u=URL.createObjectURL(b);
-  const a=document.createElement('a');a.href=u;
-  a.download='worldmarket_inventory_'+new Date().toISOString().slice(0,10)+'.csv';a.click();
-  URL.revokeObjectURL(u);
+  var b=new Blob([csv()],{type:'text/csv'}),u=URL.createObjectURL(b),a=document.createElement('a');
+  a.href=u;a.download='worldmarket_inventory_'+new Date().toISOString().slice(0,10)+'.csv';a.click();URL.revokeObjectURL(u);
 }
 function emailBoss(){
-  const body=encodeURIComponent(csv());
-  const subj=encodeURIComponent('World Market Inventory \u2014 '+new Date().toLocaleDateString());
+  var body=encodeURIComponent(csv());
+  var subj=encodeURIComponent('World Market Inventory \u2014 '+new Date().toLocaleDateString());
   window.location.href='mailto:?subject='+subj+'&body='+body;
 }
 function backup(){
-  const b=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
-  const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;
-  a.download='worldmarket_backup.json';a.click();URL.revokeObjectURL(u);
+  var b=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');
+  a.href=u;a.download='worldmarket_backup.json';a.click();URL.revokeObjectURL(u);
 }
 function restore(e){
-  const f=e.target.files[0];if(!f)return;const r=new FileReader();
-  r.onload=()=>{try{db=JSON.parse(r.result);save();render();say('\ud83d\udcbe Restored from backup.');}
-    catch(err){alert('Bad file');}};
+  var f=e.target.files[0];if(!f)return;var r=new FileReader();
+  r.onload=function(){try{db=JSON.parse(r.result);save();render();say('\ud83d\udcbe Restored from backup.');}catch(err){alert('Bad file');}};
   r.readAsText(f);
 }
 
-/* ---------- init ---------- */
-document.getElementById('cmd').addEventListener('keydown',e=>{if(e.key==='Enter')run(e.target.value);});
+/* ================= init ================= */
+document.getElementById('cmd').addEventListener('keydown',function(e){if(e.key==='Enter')run(e.target.value);});
 load();render();
-say('Ready. Say or type things like <b>"add Toblerone to expiry"</b> or <b>"Kettle chips from 8 to 2"</b>. Build out the encyclopedia below with your real SKUs and it\'ll match them.');
+say('Ready \u2014 say it in any order. Try <b>"654182 Italian Adventure box expires Aug 12"</b>, <b>"Toblerone exp 9/3"</b>, or <b>"Kettle chips 8 to 2"</b>. Bare numbers are treated as SKUs; unknown items still get logged and I\'ll offer to remember them.');
 </script>
 </body>
 </html>
