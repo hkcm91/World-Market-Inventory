@@ -157,6 +157,7 @@
   <div class="tplrow">
     <span class="tpllabel">Template</span>
     <div class="seg"><button class="segbtn" id="tplText">Text</button><button class="segbtn" id="tplPhoto">Photo</button></div>
+    <button class="pill" id="syncImgs">Sync photos</button>
     <button class="pill" id="importImgs">Import photos</button>
     <input id="imgImportIn" type="file" accept="application/json,.json" style="display:none">
   </div>
@@ -390,6 +391,26 @@ function showTab(name){
   });
   document.getElementById("tplText").addEventListener("click",()=>{template="text";localStorage.setItem(TPLKEY,template);render();});
   document.getElementById("tplPhoto").addEventListener("click",()=>{template="photo";localStorage.setItem(TPLKEY,template);render();});
+  const BURL="wm_backend_url";
+  async function syncPhotos(){
+    let base=localStorage.getItem(BURL)||"";
+    base=prompt("Sync server URL (from your backend):",base||"http://localhost:8787");
+    if(base==null)return; base=base.trim().replace(/\/+$/,""); if(!base){localStorage.removeItem(BURL);return;}
+    localStorage.setItem(BURL,base);
+    const btn=document.getElementById("syncImgs");btn.disabled=true;const was=btn.textContent;btn.textContent="Syncing…";
+    try{
+      // push the current label list (unique SKU + description) so the finder knows what to look for
+      const seen=new Set(),labels=[];rows.forEach(r=>{if(!seen.has(r.sku)){seen.add(r.sku);labels.push({sku:r.sku,desc:r.desc||""});}});
+      await fetch(base+"/labels",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(labels)});
+      // pull whatever images have been found so far and apply by SKU
+      const res=await fetch(base+"/images");if(!res.ok)throw new Error("HTTP "+res.status);
+      const map=await res.json();const n=applyImages(map||{});
+      if(template!=="photo"&&n){template="photo";localStorage.setItem(TPLKEY,template);render();}
+      alert(n?("Synced photos for "+n+" label"+(n>1?"s":"")+"."):"Connected. No matching photos on the server yet — run the image finder, then sync again.");
+    }catch(e){alert("Sync failed: "+e.message+"\n\nCheck the server URL and that the backend is running.");}
+    finally{btn.disabled=false;btn.textContent=was;}
+  }
+  document.getElementById("syncImgs").addEventListener("click",syncPhotos);
   document.getElementById("importImgs").addEventListener("click",()=>document.getElementById("imgImportIn").click());
   document.getElementById("imgImportIn").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;const fr=new FileReader();fr.onload=()=>{let map;try{map=JSON.parse(fr.result);}catch(err){alert("That file isn't valid JSON.");return;}if(!map||typeof map!=="object"||Array.isArray(map)){alert('Expected a JSON object like {"465674":"https://…/img.jpg"}.');return;}const n=applyImages(map);if(template!=="photo"){template="photo";localStorage.setItem(TPLKEY,template);render();}alert(n?("Added photos to "+n+" label"+(n>1?"s":"")+"."):"No SKUs in the file matched your labels.");};fr.onerror=()=>alert("Couldn't read that file.");fr.readAsText(f);});
   document.getElementById("addToggle").addEventListener("click",()=>document.getElementById("addForm").classList.toggle("open"));
