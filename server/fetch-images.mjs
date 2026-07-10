@@ -76,17 +76,36 @@ async function fetchWithRetry(url, accept) {
   }
   throw new Error("gave up after retries");
 }
+// Turn any WM catalog image URL into a small square via their resizing endpoint.
+function wmResize(u) {
+  const base = u.includes("/dw/image/v2/") ? u.split("?")[0]
+    : u.replace("/on/demandware.static/", "/dw/image/v2/BJWT_PRD/on/demandware.static/").split("?")[0];
+  return base + "?sw=240&sh=240&sm=fit&q=82";
+}
 async function worldMarketImage(sku) {
+  // 1) direct product page /p/<sku>.html — catches SKUs the site search index omits (its og:image is exact)
+  try {
+    const r = await fetchWithRetry("https://www.worldmarket.com/p/" + encodeURIComponent(sku) + ".html", "text/html");
+    if (r.ok) {
+      const html = await r.text();
+      const m = html.match(/<meta property="og:image" content="(https:\/\/[^"]+\/images\/large\/[^"]+?\.(?:jpe?g|png))"/i);
+      if (m) return wmResize(m[1]);
+    }
+  } catch { /* try search */ }
+  // 2) fallback: the SKU's tile on the search results page
   try {
     const r = await fetchWithRetry("https://www.worldmarket.com/search?q=" + encodeURIComponent(sku), "text/html");
-    if (!r.ok) return null;
-    const html = await r.text();
-    const i = html.indexOf('data-pid="' + sku + '"');
-    if (i < 0) return null;
-    const seg = html.slice(Math.max(0, i - 3000), i + 3000);
-    const m = seg.match(/https:\/\/www\.worldmarket\.com\/dw\/image\/v2\/[^"' ]*?images\/large\/[^"' ]+?\.(?:jpg|jpeg|png)/);
-    return m ? m[0].split("?")[0] + "?sw=240&sh=240&sm=fit&q=82" : null;
-  } catch { return null; }
+    if (r.ok) {
+      const html = await r.text();
+      const i = html.indexOf('data-pid="' + sku + '"');
+      if (i >= 0) {
+        const seg = html.slice(Math.max(0, i - 3000), i + 3000);
+        const m = seg.match(/https:\/\/www\.worldmarket\.com\/dw\/image\/v2\/[^"' ]*?images\/large\/[^"' ]+?\.(?:jpg|jpeg|png)/);
+        if (m) return wmResize(m[0]);
+      }
+    }
+  } catch { /* give up */ }
+  return null;
 }
 async function webSearchImage(desc) {
   if (!SERPAPI_API_KEY || !desc) return null;
