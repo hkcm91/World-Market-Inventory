@@ -14,6 +14,10 @@
  */
 import http from "node:http";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+// the app lives one level up from this file (repo root)
+const APP_FILE = fileURLToPath(new URL("../index.html", import.meta.url));
 
 const PORT = parseInt(process.env.PORT || "8787", 10);
 const DATA_FILE = process.env.DATA_FILE || "wm-data.json";
@@ -54,7 +58,15 @@ const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") { res.writeHead(204, CORS); return res.end(); }
 
   try {
-    if (req.method === "GET" && (path === "/" || path === "/health"))
+    // serve the app itself so a phone can load it straight from this server (same origin as the API)
+    if (req.method === "GET" && (path === "/" || path === "/index.html")) {
+      try {
+        const html = readFileSync(APP_FILE);
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", ...CORS });
+        return res.end(html);
+      } catch { return send(res, 500, { error: "index.html not found next to server/" }); }
+    }
+    if (req.method === "GET" && path === "/health")
       return send(res, 200, { ok: true, labels: db.labels.length, images: Object.keys(db.images).length });
 
     if (req.method === "GET" && path === "/labels") return send(res, 200, db.labels);

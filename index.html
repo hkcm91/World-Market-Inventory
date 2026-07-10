@@ -159,7 +159,7 @@
     <div class="seg"><button class="segbtn" id="tplText">Text</button><button class="segbtn" id="tplPhoto">Photo</button></div>
     <button class="pill" id="syncImgs">Sync photos</button>
     <button class="pill" id="importImgs">Import photos</button>
-    <input id="imgImportIn" type="file" accept="application/json,.json" style="display:none">
+    <input id="imgImportIn" type="file" style="display:none">
   </div>
   <div id="llist"></div>
   <button class="add-toggle" id="addToggle">+ Add a strip by hand</button>
@@ -394,7 +394,8 @@ function showTab(name){
   const BURL="wm_backend_url";
   async function syncPhotos(){
     let base=localStorage.getItem(BURL)||"";
-    base=prompt("Sync server URL (from your backend):",base||"http://localhost:8787");
+    const guess=(location.protocol==="http:"||location.protocol==="https:")?location.origin:"http://localhost:8787";
+    base=prompt("Sync server URL:",base||guess);
     if(base==null)return; base=base.trim().replace(/\/+$/,""); if(!base){localStorage.removeItem(BURL);return;}
     localStorage.setItem(BURL,base);
     const btn=document.getElementById("syncImgs");btn.disabled=true;const was=btn.textContent;btn.textContent="Syncing…";
