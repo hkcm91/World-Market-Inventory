@@ -566,10 +566,11 @@ function showTab(name){
     function drawBehindPDF(x,yt,r){
       const W=L.SW,H=L.SH,cx=x+W/2,per=Math.max(0,parseInt(r.perBox)||0),big=String(r.num)+" BEHIND";
       doc.setDrawColor(20,20,20);doc.setLineWidth(1.1);doc.roundedRect(x+0.06*IN,yt+0.06*IN,W-0.12*IN,H-0.12*IN,5,5,'S');
-      doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(80,76,70);doc.text("SKU "+String(r.sku||""),cx,yt+0.28*IN,{align:"center"});
       let bf=32;doc.setFont("helvetica","bold");while(bf>14){doc.setFontSize(bf);if(doc.getTextWidth(big)<=W-0.5*IN)break;bf-=0.5;}
-      doc.setFontSize(bf);doc.setTextColor(17,17,17);doc.text(big,cx,yt+0.62*IN,{align:"center"});
-      if(per>0){doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(120,116,108);doc.text(per+" / BOX",cx,yt+0.86*IN,{align:"center"});}
+      const bigBaseline=yt+H/2+bf*0.36;                 // "N BEHIND" vertically centered
+      doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(80,76,70);doc.text("SKU "+String(r.sku||""),cx,yt+0.22*IN,{align:"center"});
+      doc.setFont("helvetica","bold");doc.setFontSize(bf);doc.setTextColor(17,17,17);doc.text(big,cx,bigBaseline,{align:"center"});
+      if(per>0){doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(120,116,108);doc.text(per+" / BOX",cx,yt+H-0.13*IN,{align:"center"});}
     }
     function drawStrip(x,yt,r){return r.isBehind?drawBehindPDF(x,yt,r):(template==="photo")?drawStripPhoto(x,yt,r):drawStripText(x,yt,r);}
     function drawStripPhoto(x,yt,r){
@@ -646,10 +647,11 @@ function showTab(name){
     const L=LAYOUT,W=L.SW,H=L.SH,cx=x+W/2,per=Math.max(0,parseInt(r.perBox)||0),big=String(r.num)+" BEHIND";
     ctx.textBaseline='alphabetic';ctx.textAlign='center';ctx.setLineDash([]);
     ctx.strokeStyle='#141414';ctx.lineWidth=1.1;rrect(ctx,x+0.06*IN,yt+0.06*IN,W-0.12*IN,H-0.12*IN,5);ctx.stroke();
-    ctx.font='bold 11px Helvetica, Arial, sans-serif';ctx.fillStyle='#504c46';ctx.fillText("SKU "+String(r.sku||""),cx,yt+0.28*IN);
     let bf=32;while(bf>14){ctx.font='bold '+bf+'px Helvetica, Arial, sans-serif';if(ctx.measureText(big).width<=W-0.5*IN)break;bf-=0.5;}
-    ctx.font='bold '+bf+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#111';ctx.fillText(big,cx,yt+0.62*IN);
-    if(per>0){ctx.font='8px Helvetica, Arial, sans-serif';ctx.fillStyle='#787268';ctx.fillText(per+" / BOX",cx,yt+0.86*IN);}
+    const bigBaseline=yt+H/2+bf*0.36;                 // "N BEHIND" vertically centered
+    ctx.font='bold 11px Helvetica, Arial, sans-serif';ctx.fillStyle='#504c46';ctx.fillText("SKU "+String(r.sku||""),cx,yt+0.22*IN);
+    ctx.font='bold '+bf+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#111';ctx.fillText(big,cx,bigBaseline);
+    if(per>0){ctx.font='8px Helvetica, Arial, sans-serif';ctx.fillStyle='#787268';ctx.fillText(per+" / BOX",cx,yt+H-0.13*IN);}
     ctx.textAlign='left';ctx.strokeStyle='#d9cfbe';ctx.lineWidth=0.75;rrect(ctx,x,yt,W,H,0.09*IN);ctx.stroke();
   }
   function drawStripCanvas(ctx,x,yt,r){return r.isBehind?drawBehindCanvas(ctx,x,yt,r):(template==="photo")?drawStripCanvasPhoto(ctx,x,yt,r):drawStripCanvasText(ctx,x,yt,r);}
