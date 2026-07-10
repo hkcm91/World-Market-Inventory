@@ -393,13 +393,13 @@ function showTab(name){
     function drawStrip(x,yt,r){
       const W=L.SW;
       const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasDesc=!!(r.desc),hasExp=!!(r.expiry);
-      const padX=0.11*IN, gap=0.10*IN;
-      const boxW=0.46*IN, boxH=0.44*IN, boxT=yt+0.09*IN, boxX=x+W-padX-boxW, bcx=boxX+boxW/2;
-      // big SKU number, left-aligned, auto-fit
+      const padX=0.11*IN, gap=0.10*IN, dvY=yt+0.655*IN, zoneC=(yt+dvY)/2;
+      const boxW=0.46*IN, boxH=0.44*IN, boxT=zoneC-boxH/2, boxX=x+W-padX-boxW, bcx=boxX+boxW/2;
+      // big SKU number, left-aligned, auto-fit, vertically centered above the divider
       const numMaxW=(hasQty?boxX-gap:x+W-padX)-(x+padX);
       let nfs=30;doc.setFont("helvetica","bold");while(nfs>15){doc.setFontSize(nfs);if(doc.getTextWidth(String(r.sku))<=numMaxW)break;nfs-=0.5;}
       const skuTxt=trunc(String(r.sku),"bold",nfs,numMaxW);
-      const numBaseline=boxT+boxH/2+nfs*0.36;
+      const numBaseline=zoneC+nfs*0.355;
       doc.setFont("helvetica","bold");doc.setFontSize(nfs);doc.setTextColor(17,17,17);doc.text(skuTxt,x+padX,numBaseline,{align:"left"});
       // QTY box on the right
       if(hasQty){
@@ -409,7 +409,6 @@ function showTab(name){
         doc.setFont("helvetica","bold");doc.setFontSize(16);doc.setTextColor(17,17,17);doc.text(String(per),bcx,boxT+boxH-0.085*IN,{align:"center"});
       }
       // divider line
-      const dvY=yt+0.655*IN;
       doc.setDrawColor(150,150,150);doc.setLineWidth(0.7);doc.line(x+padX,dvY,x+W-padX,dvY);
       // description (left) + optional EXP (right) on the same baseline
       const descBaseline=yt+0.85*IN;
@@ -430,14 +429,14 @@ function showTab(name){
   function rrect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
   function drawStripCanvas(ctx,x,yt,r){
     const L=LAYOUT;const W=L.SW;const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasDesc=!!(r.desc),hasExp=!!(r.expiry);
-    const padX=0.11*IN, gap=0.10*IN;
-    const boxW=0.46*IN, boxH=0.44*IN, boxT=yt+0.09*IN, boxX=x+W-padX-boxW, bcx=boxX+boxW/2;
+    const padX=0.11*IN, gap=0.10*IN, dvY=yt+0.655*IN, zoneC=(yt+dvY)/2;
+    const boxW=0.46*IN, boxH=0.44*IN, boxT=zoneC-boxH/2, boxX=x+W-padX-boxW, bcx=boxX+boxW/2;
     ctx.textBaseline='alphabetic';
-    // big SKU number, left-aligned, auto-fit
+    // big SKU number, left-aligned, auto-fit, vertically centered above the divider
     const numMaxW=(hasQty?boxX-gap:x+W-padX)-(x+padX);
     let nfs=30;while(nfs>15){ctx.font='bold '+nfs+'px Helvetica, Arial, sans-serif';if(ctx.measureText(String(r.sku)).width<=numMaxW)break;nfs-=0.5;}
     const skuFont='bold '+nfs+'px Helvetica, Arial, sans-serif';const skuTxt=ctxTrunc(ctx,String(r.sku),skuFont,numMaxW);
-    const numBaseline=boxT+boxH/2+nfs*0.36;
+    const numBaseline=zoneC+nfs*0.355;
     ctx.textAlign='left';ctx.font=skuFont;ctx.fillStyle='#111';ctx.fillText(skuTxt,x+padX,numBaseline);
     // QTY box on the right
     if(hasQty){
@@ -447,7 +446,6 @@ function showTab(name){
       ctx.font='bold 16px Helvetica, Arial, sans-serif';ctx.fillStyle='#111';ctx.fillText(String(per),bcx,boxT+boxH-0.085*IN);
     }
     // divider line
-    const dvY=yt+0.655*IN;
     ctx.strokeStyle='#969696';ctx.lineWidth=0.7;ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(x+padX,dvY);ctx.lineTo(x+W-padX,dvY);ctx.stroke();
     // description (left) + optional EXP (right)
     const descBaseline=yt+0.85*IN;
