@@ -395,12 +395,12 @@ function showTab(name){
       const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasDesc=!!(r.desc),hasExp=!!(r.expiry);
       const padX=0.17*IN, gap=0.10*IN, dvY=yt+0.655*IN, zoneC=(yt+dvY)/2;
       const boxW=0.46*IN, boxH=0.44*IN, boxT=zoneC-boxH/2, boxX=x+W-padX-boxW, bcx=boxX+boxW/2;
-      // big SKU number, left-aligned, auto-fit, vertically centered above the divider
-      const numMaxW=(hasQty?boxX-gap:x+W-padX)-(x+padX);
+      // big SKU number, centered in the space left of the QTY box, vertically centered above the divider
+      const numZoneR=hasQty?boxX-gap:x+W-padX, numMaxW=numZoneR-(x+padX), numCx=(x+padX+numZoneR)/2;
       let nfs=30;doc.setFont("helvetica","bold");while(nfs>15){doc.setFontSize(nfs);if(doc.getTextWidth(String(r.sku))<=numMaxW)break;nfs-=0.5;}
       const skuTxt=trunc(String(r.sku),"bold",nfs,numMaxW);
       const numBaseline=zoneC+nfs*0.355;
-      doc.setFont("helvetica","bold");doc.setFontSize(nfs);doc.setTextColor(17,17,17);doc.text(skuTxt,x+padX,numBaseline,{align:"left"});
+      doc.setFont("helvetica","bold");doc.setFontSize(nfs);doc.setTextColor(17,17,17);doc.text(skuTxt,numCx,numBaseline,{align:"center"});
       // QTY box on the right
       if(hasQty){
         doc.setDrawColor(120,120,120);doc.setLineWidth(0.9);doc.roundedRect(boxX,boxT,boxW,boxH,3,3,'S');
@@ -432,12 +432,12 @@ function showTab(name){
     const padX=0.17*IN, gap=0.10*IN, dvY=yt+0.655*IN, zoneC=(yt+dvY)/2;
     const boxW=0.46*IN, boxH=0.44*IN, boxT=zoneC-boxH/2, boxX=x+W-padX-boxW, bcx=boxX+boxW/2;
     ctx.textBaseline='alphabetic';
-    // big SKU number, left-aligned, auto-fit, vertically centered above the divider
-    const numMaxW=(hasQty?boxX-gap:x+W-padX)-(x+padX);
+    // big SKU number, centered in the space left of the QTY box, vertically centered above the divider
+    const numZoneR=hasQty?boxX-gap:x+W-padX, numMaxW=numZoneR-(x+padX), numCx=(x+padX+numZoneR)/2;
     let nfs=30;while(nfs>15){ctx.font='bold '+nfs+'px Helvetica, Arial, sans-serif';if(ctx.measureText(String(r.sku)).width<=numMaxW)break;nfs-=0.5;}
     const skuFont='bold '+nfs+'px Helvetica, Arial, sans-serif';const skuTxt=ctxTrunc(ctx,String(r.sku),skuFont,numMaxW);
     const numBaseline=zoneC+nfs*0.355;
-    ctx.textAlign='left';ctx.font=skuFont;ctx.fillStyle='#111';ctx.fillText(skuTxt,x+padX,numBaseline);
+    ctx.textAlign='center';ctx.font=skuFont;ctx.fillStyle='#111';ctx.fillText(skuTxt,numCx,numBaseline);
     // QTY box on the right
     if(hasQty){
       ctx.strokeStyle='#787878';ctx.lineWidth=0.9;ctx.setLineDash([]);rrect(ctx,boxX,boxT,boxW,boxH,3);ctx.stroke();
