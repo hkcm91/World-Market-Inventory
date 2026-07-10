@@ -475,8 +475,8 @@ function showTab(name){
     function drawStripPhoto(x,yt,r){
       const W=L.SW,H=L.SH;
       const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasExp=!!(r.expiry);
-      const pad=0.075*IN, rpad=0.17*IN, imgS=0.58*IN, imgX=x+pad, imgY=yt+(H-imgS)/2;
-      const boxW=0.62*IN, boxH=0.64*IN, boxX=x+W-rpad-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;
+      const pad=0.14*IN, rpad=0.14*IN, imgS=0.58*IN, imgX=x+pad, imgY=yt+(H-imgS)/2;
+      const boxW=0.64*IN, boxH=0.64*IN, boxX=x+W-rpad-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;
       const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-pad)-0.09*IN, textW=Math.max(10,textR-textL);
       // product image (or dashed placeholder box)
       const im=r.img?imgCache.get(r.img):null;
@@ -496,7 +496,12 @@ function showTab(name){
       if(lines.length){doc.setFont("helvetica","bold");doc.setFontSize(dfs);doc.setTextColor(40,40,40);let ly=by+g1+dAsc;lines.forEach(ln=>{doc.text(ln,textL,ly,{align:"left"});descBottom=ly;ly+=dLh;});}
       if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(150,60,55);doc.text("EXP "+fmtExp(r.expiry),textL,descBottom+g2+expAsc,{align:"left"});}
       // QTY box (bold, like the mock-up)
-      if(hasQty){doc.setDrawColor(20,20,20);doc.setLineWidth(1.3);doc.roundedRect(boxX,boxY,boxW,boxH,2.5,2.5,'S');doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(20,20,20);doc.text("QTY",bcx,boxY+0.165*IN,{align:"center"});doc.setLineWidth(0.9);doc.line(boxX+0.03*IN,boxY+0.215*IN,boxX+boxW-0.03*IN,boxY+0.215*IN);doc.setFontSize(22);doc.text(String(per),bcx,boxY+boxH-0.115*IN,{align:"center"});}
+      if(hasQty){doc.setDrawColor(20,20,20);doc.setLineWidth(1.3);doc.roundedRect(boxX,boxY,boxW,boxH,3,3,'S');
+        const dY=boxY+0.32*boxH;
+        doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(20,20,20);doc.text("QTY",bcx,dY-0.055*IN,{align:"center"});
+        doc.setLineWidth(0.9);doc.line(boxX+0.05*IN,dY,boxX+boxW-0.05*IN,dY);
+        let qf=20;const nmax=boxW-0.28*IN;while(qf>12){doc.setFontSize(qf);if(doc.getTextWidth(String(per))<=nmax)break;qf-=0.5;}
+        doc.setFontSize(qf);doc.text(String(per),bcx,(dY+boxY+boxH)/2+qf*0.72/2-1,{align:"center"});}
     }
     function drawStripText(x,yt,r){
       const W=L.SW;
@@ -561,7 +566,12 @@ function showTab(name){
     if(lines.length){ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#282828';let ly=by+g1+dAsc;lines.forEach(ln=>{ctx.fillText(ln,textL,ly);descBottom=ly;ly+=dLh;});}
     if(hasExp){ctx.textAlign='left';ctx.font='bold 7px Helvetica, Arial, sans-serif';ctx.fillStyle='#963c37';ctx.fillText('EXP '+fmtExp(r.expiry),textL,descBottom+g2+expAsc);}
     // QTY box
-    if(hasQty){ctx.strokeStyle='#141414';ctx.lineWidth=1.3;ctx.setLineDash([]);rrect(ctx,boxX,boxY,boxW,boxH,2.5);ctx.stroke();ctx.textAlign='center';ctx.font='bold 7px Helvetica, Arial, sans-serif';ctx.fillStyle='#141414';ctx.fillText('QTY',bcx,boxY+0.165*IN);ctx.beginPath();ctx.moveTo(boxX+0.03*IN,boxY+0.215*IN);ctx.lineTo(boxX+boxW-0.03*IN,boxY+0.215*IN);ctx.lineWidth=0.9;ctx.stroke();ctx.font='bold 22px Helvetica, Arial, sans-serif';ctx.fillText(String(per),bcx,boxY+boxH-0.115*IN);}
+    if(hasQty){ctx.strokeStyle='#141414';ctx.lineWidth=1.3;ctx.setLineDash([]);rrect(ctx,boxX,boxY,boxW,boxH,3);ctx.stroke();
+      const dY=boxY+0.32*boxH;
+      ctx.textAlign='center';ctx.font='bold 7px Helvetica, Arial, sans-serif';ctx.fillStyle='#141414';ctx.fillText('QTY',bcx,dY-0.055*IN);
+      ctx.beginPath();ctx.moveTo(boxX+0.05*IN,dY);ctx.lineTo(boxX+boxW-0.05*IN,dY);ctx.lineWidth=0.9;ctx.stroke();
+      let qf=20;const nmax=boxW-0.28*IN;while(qf>12){ctx.font='bold '+qf+'px Helvetica, Arial, sans-serif';if(ctx.measureText(String(per)).width<=nmax)break;qf-=0.5;}
+      ctx.font='bold '+qf+'px Helvetica, Arial, sans-serif';ctx.fillText(String(per),bcx,(dY+boxY+boxH)/2+qf*0.72/2-1);}
     // outer label border
     ctx.textAlign='left';ctx.strokeStyle='#d9cfbe';ctx.lineWidth=0.75;ctx.setLineDash([]);rrect(ctx,x,yt,W,H,0.09*IN);ctx.stroke();
   }
