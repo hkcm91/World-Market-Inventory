@@ -379,7 +379,24 @@ function showTab(name){
   });
 
   document.getElementById("downloadBtn").addEventListener("click",()=>{if(totals().strips===0)return;buildDoc().save("sku_labels.pdf");});
-  document.getElementById("emailBtn").addEventListener("click",()=>{const t=totals();if(t.strips===0)return;buildDoc().save("sku_labels.pdf");const su=encodeURIComponent("Top stock SKU labels ("+t.strips+" labels)");const body=encodeURIComponent("Label sheet attached.\n\n"+t.strips+" labels \u00b7 "+t.pages+" page"+(t.pages>1?"s":"")+".");window.location.href="mailto:"+EMAIL_TO+"?subject="+su+"&body="+body;});
+  document.getElementById("emailBtn").addEventListener("click",async ()=>{
+    const t=totals();if(t.strips===0)return;
+    const doc=buildDoc(),fname="sku_labels.pdf";
+    const subj="Top stock SKU labels ("+t.strips+" labels)";
+    const summary=t.strips+" labels \u00b7 "+t.pages+" page"+(t.pages>1?"s":"")+".";
+    // Preferred: native share sheet with the PDF actually attached (mobile Safari / Chrome).
+    try{
+      const file=new File([doc.output("blob")],fname,{type:"application/pdf"});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){
+        await navigator.share({files:[file],title:subj,text:"To: "+EMAIL_TO+"\n\nLabel sheet attached.\n\n"+summary});
+        return;
+      }
+    }catch(e){if(e&&e.name==="AbortError")return;/* fall through to download + mailto */}
+    // Fallback: mailto can't carry attachments, so download the PDF and ask the user to attach it.
+    doc.save(fname);
+    const body=encodeURIComponent("The label PDF ("+fname+") was just downloaded to this device \u2014 please attach it to this email before sending.\n\n"+summary);
+    window.location.href="mailto:"+EMAIL_TO+"?subject="+encodeURIComponent(subj)+"&body="+body;
+  });
   document.getElementById("previewBtn").addEventListener("click",()=>{document.getElementById("modal").classList.add("open");requestAnimationFrame(renderPreview);});
   document.getElementById("closeModal").addEventListener("click",()=>document.getElementById("modal").classList.remove("open"));
   document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")e.currentTarget.classList.remove("open");});
