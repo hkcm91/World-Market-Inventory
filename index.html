@@ -476,7 +476,7 @@ function showTab(name){
       const W=L.SW,H=L.SH;
       const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasExp=!!(r.expiry);
       const pad=0.075*IN, imgS=0.58*IN, imgX=x+pad, imgY=yt+(H-imgS)/2;
-      const boxW=0.40*IN, boxH=0.50*IN, boxX=x+W-pad-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;
+      const boxW=0.47*IN, boxH=0.60*IN, boxX=x+W-pad-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;
       const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-pad)-0.09*IN, textW=Math.max(10,textR-textL);
       // product image (or dashed placeholder box)
       const im=r.img?imgCache.get(r.img):null;
@@ -485,8 +485,8 @@ function showTab(name){
       // fit SKU + description, then vertically center the whole text block in the label
       let nfs=22;doc.setFont("helvetica","bold");while(nfs>11){doc.setFontSize(nfs);if(doc.getTextWidth(String(r.sku))<=textW)break;nfs-=0.5;}
       const skuTxt=trunc(String(r.sku),"bold",nfs,textW);
-      let dfs=8,lines=[];
-      if(r.desc){doc.setFont("helvetica","bold");while(dfs>6){doc.setFontSize(dfs);lines=doc.splitTextToSize(String(r.desc),textW);if(lines.length<=2)break;dfs-=0.25;}if(lines.length>2){lines=lines.slice(0,2);lines[1]=trunc(lines[1],"bold",dfs,textW);}}
+      let dfs=7,lines=[];
+      if(r.desc){doc.setFont("helvetica","bold");while(dfs>5){doc.setFontSize(dfs);lines=doc.splitTextToSize(String(r.desc),textW);if(lines.length<=2)break;dfs-=0.25;}if(lines.length>2){lines=lines.slice(0,2);lines[1]=trunc(lines[1],"bold",dfs,textW);}}
       const sz=parseSize(r.desc),hasSizeRow=!!(sz||hasExp);
       const skuAsc=nfs*0.72,dLh=dfs*1.18,dAsc=dfs*0.72,szAsc=6.8*0.72,g1=0.05*IN,g2=0.045*IN;
       let blockH=skuAsc;if(lines.length)blockH+=g1+(lines.length-1)*dLh+dAsc;if(hasSizeRow)blockH+=g2+szAsc;
@@ -498,7 +498,7 @@ function showTab(name){
       if(sz){doc.setFont("helvetica","normal");doc.setFontSize(6.8);doc.setTextColor(120,116,108);doc.text("SIZE "+sz,textL,sizeBaseline,{align:"left"});}
       if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(150,60,55);doc.text("EXP "+fmtExp(r.expiry),textR,sizeBaseline,{align:"right"});}
       // QTY box (bold, like the mock-up)
-      if(hasQty){doc.setDrawColor(20,20,20);doc.setLineWidth(1.2);doc.roundedRect(boxX,boxY,boxW,boxH,2.5,2.5,'S');doc.setFont("helvetica","bold");doc.setFontSize(6.5);doc.setTextColor(20,20,20);doc.text("QTY",bcx,boxY+0.145*IN,{align:"center"});doc.setLineWidth(0.8);doc.line(boxX+0.03*IN,boxY+0.18*IN,boxX+boxW-0.03*IN,boxY+0.18*IN);doc.setFontSize(18);doc.text(String(per),bcx,boxY+boxH-0.11*IN,{align:"center"});}
+      if(hasQty){doc.setDrawColor(20,20,20);doc.setLineWidth(1.3);doc.roundedRect(boxX,boxY,boxW,boxH,2.5,2.5,'S');doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(20,20,20);doc.text("QTY",bcx,boxY+0.165*IN,{align:"center"});doc.setLineWidth(0.9);doc.line(boxX+0.03*IN,boxY+0.215*IN,boxX+boxW-0.03*IN,boxY+0.215*IN);doc.setFontSize(22);doc.text(String(per),bcx,boxY+boxH-0.115*IN,{align:"center"});}
     }
     function drawStripText(x,yt,r){
       const W=L.SW;
@@ -552,8 +552,8 @@ function showTab(name){
     // fit SKU + description, then vertically center the whole text block in the label
     let nfs=22;while(nfs>11){ctx.font='bold '+nfs+'px Helvetica, Arial, sans-serif';if(ctx.measureText(String(r.sku)).width<=textW)break;nfs-=0.5;}
     const skuFont='bold '+nfs+'px Helvetica, Arial, sans-serif',skuTxt=ctxTrunc(ctx,String(r.sku),skuFont,textW);
-    let dfs=8,lines=[];
-    if(r.desc){while(dfs>6){ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';lines=wrapCanvas(ctx,r.desc,textW,99);if(lines.length<=2)break;dfs-=0.25;}ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';lines=wrapCanvas(ctx,r.desc,textW,2);}
+    let dfs=7,lines=[];
+    if(r.desc){while(dfs>5){ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';lines=wrapCanvas(ctx,r.desc,textW,99);if(lines.length<=2)break;dfs-=0.25;}ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';lines=wrapCanvas(ctx,r.desc,textW,2);}
     const sz=parseSize(r.desc),hasSizeRow=!!(sz||hasExp);
     const skuAsc=nfs*0.72,dLh=dfs*1.18,dAsc=dfs*0.72,szAsc=6.8*0.72,g1=0.05*IN,g2=0.045*IN;
     let blockH=skuAsc;if(lines.length)blockH+=g1+(lines.length-1)*dLh+dAsc;if(hasSizeRow)blockH+=g2+szAsc;
@@ -565,7 +565,7 @@ function showTab(name){
     if(sz){ctx.textAlign='left';ctx.font='6.8px Helvetica, Arial, sans-serif';ctx.fillStyle='#787268';ctx.fillText('SIZE '+sz,textL,sizeBaseline);}
     if(hasExp){ctx.textAlign='right';ctx.font='bold 7px Helvetica, Arial, sans-serif';ctx.fillStyle='#963c37';ctx.fillText('EXP '+fmtExp(r.expiry),textR,sizeBaseline);}
     // QTY box
-    if(hasQty){ctx.strokeStyle='#141414';ctx.lineWidth=1.2;ctx.setLineDash([]);rrect(ctx,boxX,boxY,boxW,boxH,2.5);ctx.stroke();ctx.textAlign='center';ctx.font='bold 6.5px Helvetica, Arial, sans-serif';ctx.fillStyle='#141414';ctx.fillText('QTY',bcx,boxY+0.145*IN);ctx.beginPath();ctx.moveTo(boxX+0.03*IN,boxY+0.18*IN);ctx.lineTo(boxX+boxW-0.03*IN,boxY+0.18*IN);ctx.lineWidth=0.8;ctx.stroke();ctx.font='bold 18px Helvetica, Arial, sans-serif';ctx.fillText(String(per),bcx,boxY+boxH-0.11*IN);}
+    if(hasQty){ctx.strokeStyle='#141414';ctx.lineWidth=1.3;ctx.setLineDash([]);rrect(ctx,boxX,boxY,boxW,boxH,2.5);ctx.stroke();ctx.textAlign='center';ctx.font='bold 7px Helvetica, Arial, sans-serif';ctx.fillStyle='#141414';ctx.fillText('QTY',bcx,boxY+0.165*IN);ctx.beginPath();ctx.moveTo(boxX+0.03*IN,boxY+0.215*IN);ctx.lineTo(boxX+boxW-0.03*IN,boxY+0.215*IN);ctx.lineWidth=0.9;ctx.stroke();ctx.font='bold 22px Helvetica, Arial, sans-serif';ctx.fillText(String(per),bcx,boxY+boxH-0.115*IN);}
     // outer label border
     ctx.textAlign='left';ctx.strokeStyle='#d9cfbe';ctx.lineWidth=0.75;ctx.setLineDash([]);rrect(ctx,x,yt,W,H,0.09*IN);ctx.stroke();
   }
