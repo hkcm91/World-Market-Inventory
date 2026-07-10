@@ -391,26 +391,36 @@ function showTab(name){
     const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:"letter"});const L=LAYOUT;const strips=stripList();if(strips.length===0)return doc;
     function trunc(text,style,size,maxw){doc.setFont("helvetica",style);doc.setFontSize(size);if(doc.getTextWidth(text)<=maxw)return text;let t=text;while(t&&doc.getTextWidth(t+"\u2026")>maxw)t=t.slice(0,-1);return t+"\u2026";}
     function drawStrip(x,yt,r){
+      const W=L.SW;
       const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasDesc=!!(r.desc),hasExp=!!(r.expiry);
-      const G=0.28*IN,vgap=0.055,cx=x+L.SW/2;
-      let numW=0,qtyW=0,rightW=0;
-      if(hasQty){doc.setFont("helvetica","bold");doc.setFontSize(26);numW=doc.getTextWidth(String(per));doc.setFontSize(8);qtyW=doc.getTextWidth("QTY");rightW=Math.max(numW,qtyW);}
-      doc.setFont("helvetica","bold");doc.setFontSize(28);
-      const sku=trunc(String(r.sku),"bold",28,1.55*IN),skuW=doc.getTextWidth(sku);
-      let dfs=11,dtext=String(r.desc||"");
-      if(hasDesc){const dmax=L.SW-0.14*IN;doc.setFont("helvetica","normal");while(dfs>7){doc.setFontSize(dfs);if(doc.getTextWidth(dtext)<=dmax)break;dfs-=0.5;}dtext=trunc(dtext,"normal",dfs,dmax);}
-      const present=[{c:0.28,d:0}];
-      if(hasQty)present.push({c:0.075,d:0});
-      if(hasDesc)present.push({c:dfs*0.70/72,d:dfs*0.16/72});
-      if(hasExp)present.push({c:0.10,d:0.025});
-      let H=present[0].c;for(let i=1;i<present.length;i++)H+=vgap+present[i].c;H+=present[present.length-1].d;
-      let acc=(L.SH/IN-H)/2;const B=[];for(let i=0;i<present.length;i++){if(i>0)acc+=vgap;acc+=present[i].c;B.push(acc*IN);}
-      let bi=0;const y1=B[bi++],yQ=hasQty?B[bi++]:0,yD=hasDesc?B[bi++]:0,yE=hasExp?B[bi++]:0;
-      const rowW=skuW+(hasQty?(G+rightW):0);const start=x+(L.SW-rowW)/2,lcx=start+skuW/2,rcx=start+skuW+G+rightW/2;
-      doc.setFont("helvetica","bold");doc.setFontSize(28);doc.setTextColor(17,17,17);doc.text(sku,lcx,yt+y1,{align:"center"});
-      if(hasQty){doc.setFont("helvetica","bold");doc.setFontSize(26);doc.setTextColor(17,17,17);doc.text(String(per),rcx,yt+y1,{align:"center"});doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(140,140,136);doc.text("QTY",rcx,yt+yQ,{align:"center"});}
-      if(hasDesc){doc.setFont("helvetica","normal");doc.setFontSize(dfs);doc.setTextColor(90,86,78);doc.text(dtext,cx,yt+yD,{align:"center"});}
-      if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(150,60,55);doc.text("EXP "+fmtExp(r.expiry),cx,yt+yE,{align:"center"});}
+      const padX=0.11*IN, gap=0.10*IN;
+      const boxW=0.46*IN, boxH=0.44*IN, boxT=yt+0.09*IN, boxX=x+W-padX-boxW, bcx=boxX+boxW/2;
+      // big SKU number, left-aligned, auto-fit
+      const numMaxW=(hasQty?boxX-gap:x+W-padX)-(x+padX);
+      let nfs=30;doc.setFont("helvetica","bold");while(nfs>15){doc.setFontSize(nfs);if(doc.getTextWidth(String(r.sku))<=numMaxW)break;nfs-=0.5;}
+      const skuTxt=trunc(String(r.sku),"bold",nfs,numMaxW);
+      const numBaseline=boxT+boxH/2+nfs*0.36;
+      doc.setFont("helvetica","bold");doc.setFontSize(nfs);doc.setTextColor(17,17,17);doc.text(skuTxt,x+padX,numBaseline,{align:"left"});
+      // QTY box on the right
+      if(hasQty){
+        doc.setDrawColor(120,120,120);doc.setLineWidth(0.9);doc.roundedRect(boxX,boxT,boxW,boxH,3,3,'S');
+        doc.setFont("helvetica","bold");doc.setFontSize(6.5);doc.setTextColor(90,90,90);doc.text("QTY",bcx,boxT+0.135*IN,{align:"center"});
+        doc.setLineWidth(0.6);doc.line(boxX+0.03*IN,boxT+0.165*IN,boxX+boxW-0.03*IN,boxT+0.165*IN);
+        doc.setFont("helvetica","bold");doc.setFontSize(16);doc.setTextColor(17,17,17);doc.text(String(per),bcx,boxT+boxH-0.085*IN,{align:"center"});
+      }
+      // divider line
+      const dvY=yt+0.655*IN;
+      doc.setDrawColor(150,150,150);doc.setLineWidth(0.7);doc.line(x+padX,dvY,x+W-padX,dvY);
+      // description (left) + optional EXP (right) on the same baseline
+      const descBaseline=yt+0.85*IN;
+      let expTxt=hasExp?("EXP "+fmtExp(r.expiry)):"",expW=0;
+      if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(8);expW=doc.getTextWidth(expTxt)+0.06*IN;}
+      const descMaxW=W-2*padX-expW;
+      if(hasDesc){
+        let dfs=8.5,dtext=String(r.desc);doc.setFont("helvetica","bold");while(dfs>6){doc.setFontSize(dfs);if(doc.getTextWidth(dtext)<=descMaxW)break;dfs-=0.25;}
+        dtext=trunc(dtext,"bold",dfs,descMaxW);doc.setFont("helvetica","bold");doc.setFontSize(dfs);doc.setTextColor(40,40,40);doc.text(dtext,x+padX,descBaseline,{align:"left"});
+      }
+      if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(150,60,55);doc.text(expTxt,x+W-padX,descBaseline,{align:"right"});}
     }
     for(let ps=0;ps<strips.length;ps+=L.PER){if(ps>0)doc.addPage();const page=strips.slice(ps,ps+L.PER);page.forEach((r,slot)=>{const row=Math.floor(slot/L.COLS),col=slot%L.COLS;drawStrip(L.MX+col*(L.SW+L.GUT),L.MT+row*L.SH,r);});}
     return doc;
@@ -419,26 +429,38 @@ function showTab(name){
   function ctxTrunc(ctx,text,font,maxw){ctx.font=font;if(ctx.measureText(text).width<=maxw)return text;let t=text;while(t&&ctx.measureText(t+"\u2026").width>maxw)t=t.slice(0,-1);return t+"\u2026";}
   function rrect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
   function drawStripCanvas(ctx,x,yt,r){
-    const L=LAYOUT;const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasDesc=!!(r.desc),hasExp=!!(r.expiry);
-    const G=0.28*IN,vgap=0.055,cx=x+L.SW/2;
-    ctx.textBaseline='alphabetic';ctx.textAlign='center';
-    let numW=0,qtyW=0,rightW=0;
-    if(hasQty){ctx.font='bold 26px Helvetica, Arial, sans-serif';numW=ctx.measureText(String(per)).width;ctx.font='bold 8px Helvetica, Arial, sans-serif';qtyW=ctx.measureText('QTY').width;rightW=Math.max(numW,qtyW);}
-    const skuFont='bold 28px Helvetica, Arial, sans-serif';const sku=ctxTrunc(ctx,String(r.sku),skuFont,1.55*IN);ctx.font=skuFont;const skuW=ctx.measureText(sku).width;
-    let dfs=11,dtext=String(r.desc||"");
-    if(hasDesc){const dmax=L.SW-0.14*IN;let f='11px Helvetica, Arial, sans-serif';while(dfs>7){f=dfs+'px Helvetica, Arial, sans-serif';ctx.font=f;if(ctx.measureText(dtext).width<=dmax)break;dfs-=0.5;}f=dfs+'px Helvetica, Arial, sans-serif';dtext=ctxTrunc(ctx,dtext,f,dmax);}
-    const present=[{c:0.28,d:0}];
-    if(hasQty)present.push({c:0.075,d:0});
-    if(hasDesc)present.push({c:dfs*0.70/72,d:dfs*0.16/72});
-    if(hasExp)present.push({c:0.10,d:0.025});
-    let H=present[0].c;for(let i=1;i<present.length;i++)H+=vgap+present[i].c;H+=present[present.length-1].d;
-    let acc=(L.SH/IN-H)/2;const B=[];for(let i=0;i<present.length;i++){if(i>0)acc+=vgap;acc+=present[i].c;B.push(acc*IN);}
-    let bi=0;const y1=B[bi++],yQ=hasQty?B[bi++]:0,yD=hasDesc?B[bi++]:0,yE=hasExp?B[bi++]:0;
-    const rowW=skuW+(hasQty?(G+rightW):0);const start=x+(L.SW-rowW)/2,lcx=start+skuW/2,rcx=start+skuW+G+rightW/2;
-    ctx.font=skuFont;ctx.fillStyle='#111';ctx.fillText(sku,lcx,yt+y1);
-    if(hasQty){ctx.font='bold 26px Helvetica, Arial, sans-serif';ctx.fillStyle='#111';ctx.fillText(String(per),rcx,yt+y1);ctx.font='bold 8px Helvetica, Arial, sans-serif';ctx.fillStyle='#8c8c88';ctx.fillText('QTY',rcx,yt+yQ);}
-    if(hasDesc){ctx.font=dfs+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#5a564e';ctx.fillText(dtext,cx,yt+yD);}
-    if(hasExp){ctx.font='bold 10px Helvetica, Arial, sans-serif';ctx.fillStyle='#963c37';ctx.fillText('EXP '+fmtExp(r.expiry),cx,yt+yE);}
+    const L=LAYOUT;const W=L.SW;const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasDesc=!!(r.desc),hasExp=!!(r.expiry);
+    const padX=0.11*IN, gap=0.10*IN;
+    const boxW=0.46*IN, boxH=0.44*IN, boxT=yt+0.09*IN, boxX=x+W-padX-boxW, bcx=boxX+boxW/2;
+    ctx.textBaseline='alphabetic';
+    // big SKU number, left-aligned, auto-fit
+    const numMaxW=(hasQty?boxX-gap:x+W-padX)-(x+padX);
+    let nfs=30;while(nfs>15){ctx.font='bold '+nfs+'px Helvetica, Arial, sans-serif';if(ctx.measureText(String(r.sku)).width<=numMaxW)break;nfs-=0.5;}
+    const skuFont='bold '+nfs+'px Helvetica, Arial, sans-serif';const skuTxt=ctxTrunc(ctx,String(r.sku),skuFont,numMaxW);
+    const numBaseline=boxT+boxH/2+nfs*0.36;
+    ctx.textAlign='left';ctx.font=skuFont;ctx.fillStyle='#111';ctx.fillText(skuTxt,x+padX,numBaseline);
+    // QTY box on the right
+    if(hasQty){
+      ctx.strokeStyle='#787878';ctx.lineWidth=0.9;ctx.setLineDash([]);rrect(ctx,boxX,boxT,boxW,boxH,3);ctx.stroke();
+      ctx.textAlign='center';ctx.font='bold 6.5px Helvetica, Arial, sans-serif';ctx.fillStyle='#5a5a5a';ctx.fillText('QTY',bcx,boxT+0.135*IN);
+      ctx.beginPath();ctx.moveTo(boxX+0.03*IN,boxT+0.165*IN);ctx.lineTo(boxX+boxW-0.03*IN,boxT+0.165*IN);ctx.lineWidth=0.6;ctx.stroke();
+      ctx.font='bold 16px Helvetica, Arial, sans-serif';ctx.fillStyle='#111';ctx.fillText(String(per),bcx,boxT+boxH-0.085*IN);
+    }
+    // divider line
+    const dvY=yt+0.655*IN;
+    ctx.strokeStyle='#969696';ctx.lineWidth=0.7;ctx.setLineDash([]);ctx.beginPath();ctx.moveTo(x+padX,dvY);ctx.lineTo(x+W-padX,dvY);ctx.stroke();
+    // description (left) + optional EXP (right)
+    const descBaseline=yt+0.85*IN;
+    let expTxt=hasExp?('EXP '+fmtExp(r.expiry)):'',expW=0;
+    if(hasExp){ctx.font='bold 8px Helvetica, Arial, sans-serif';expW=ctx.measureText(expTxt).width+0.06*IN;}
+    const descMaxW=W-2*padX-expW;
+    if(hasDesc){
+      let dfs=8.5,dtext=String(r.desc),f='bold 8.5px Helvetica, Arial, sans-serif';
+      while(dfs>6){f='bold '+dfs+'px Helvetica, Arial, sans-serif';ctx.font=f;if(ctx.measureText(dtext).width<=descMaxW)break;dfs-=0.25;}
+      f='bold '+dfs+'px Helvetica, Arial, sans-serif';dtext=ctxTrunc(ctx,dtext,f,descMaxW);
+      ctx.textAlign='left';ctx.font=f;ctx.fillStyle='#282828';ctx.fillText(dtext,x+padX,descBaseline);
+    }
+    if(hasExp){ctx.textAlign='right';ctx.font='bold 8px Helvetica, Arial, sans-serif';ctx.fillStyle='#963c37';ctx.fillText(expTxt,x+W-padX,descBaseline);}
     ctx.textAlign='left';ctx.strokeStyle='#d9cfbe';ctx.lineWidth=0.75;ctx.setLineDash([]);rrect(ctx,x,yt,L.SW,L.SH,0.09*IN);ctx.stroke();
   }
   function drawPageCanvas(ctx,page){const L=LAYOUT;page.forEach((r,slot)=>{const row=Math.floor(slot/L.COLS),col=slot%L.COLS;drawStripCanvas(ctx,L.MX+col*(L.SW+L.GUT),L.MT+row*L.SH,r);});}
