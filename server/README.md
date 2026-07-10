@@ -1,77 +1,75 @@
-# Product photos: sync backend + image-finder MCP
+# Product photos: sync server + image finder
 
-This adds product images to the label sheet. Three pieces work together:
+Two ways to get product photos onto the labels:
 
-```
-  Web app (index.html)            Sync backend (server/)           Image-finder MCP (mcp/)
-  ───────────────────             ──────────────────────           ───────────────────────
-  Photo template renders          Tiny JSON store:                 Reads /labels, finds a
-  a product image per label.      • /labels  (from the app)        product image per SKU
-  "Sync photos" button:           • /images  (from the MCP)        (World Market first, then
-   POST /labels, GET /images.     CORS-enabled, no deps.           a web-search fallback),
-                                                                    POST /images.
-```
+- **Import photos** (in the app) — no server. Pick a `{ "sku": "image" }` JSON file and it
+  applies the images locally. Simplest for a one-off.
+- **Sync photos** (this folder) — a small server finds product images automatically and the
+  app pulls them by SKU. Set it up once, re-run the finder whenever the list changes.
 
-The app stays offline-first: without a backend URL it still works with per-row
-photo upload and **Import photos** (a `{ "sku": "image" }` JSON file). The backend
-only powers the automatic **Sync photos** flow.
+## Sync setup (the easy path)
 
-## 1. Run the backend
+You need a computer with **Node 18+** that's on the **same Wi‑Fi** as the phone. No Claude
+client required — it's two commands.
+
+**1. Run the server** (serves the app *and* the sync API from one place):
 
 ```bash
-node server/backend.mjs                 # http://localhost:8787, data in ./wm-data.json
-# or: PORT=9000 DATA_FILE=/var/wm.json node server/backend.mjs
+node server/backend.mjs          # listens on :8787
 ```
 
-Endpoints: `GET /health`, `GET|POST /labels`, `GET|POST /images`, `DELETE /images`.
-Images are stored as strings — either `data:` URIs (recommended; no CORS issues in
-the PDF) or `https://` URLs. For phones to reach it, host it somewhere both the
-phone and the MCP can see (a small VM, a tunnel like `cloudflared`, etc.).
+Find the computer's LAN address (e.g. `192.168.1.42`): macOS `ipconfig getifaddr en0`,
+Windows `ipconfig`, Linux `hostname -I`.
 
-## 2. Point the app at it
+**2. Open the app on the phone** at `http://<computer-ip>:8787/` (same Wi‑Fi). Because the app
+is served *from* the sync server, everything is same‑origin — no URL typing, no mixed‑content
+blocks. Go to the **Labels** tab and tap **Sync photos** once (the URL is pre‑filled — just
+tap OK). That pushes your label list up to the server.
 
-In the **Labels** tab, tap **Sync photos** and enter the backend URL. The app pushes
-its label list up and pulls any images already found. The URL is remembered on the device.
-
-## 3. Run the image finder (MCP)
+**3. Find the photos:**
 
 ```bash
-cd mcp && npm install
-WM_BACKEND=http://localhost:8787 SERPAPI_API_KEY=<optional> node index.mjs
+node server/fetch-images.mjs                       # World Market only
+SERPAPI_API_KEY=xxxx node server/fetch-images.mjs  # + web-search fallback for misses
 ```
 
-- `WM_BACKEND` — same URL as the backend.
-- `SERPAPI_API_KEY` — enables the web-image-search fallback (https://serpapi.com).
-  Without it, only World Market is checked.
+It reads your labels from the server, finds a product photo for each SKU (World Market first,
+then the optional web search), and posts them back.
 
-Register it with your MCP client (Claude Desktop / `claude mcp`). Example
-`claude_desktop_config.json` entry:
+**4. Back on the phone, tap Sync photos again** — the real product images appear.
 
-```json
-{
-  "mcpServers": {
-    "wm-image-finder": {
-      "command": "node",
-      "args": ["/absolute/path/to/mcp/index.mjs"],
-      "env": { "WM_BACKEND": "http://localhost:8787", "SERPAPI_API_KEY": "" }
-    }
-  }
-}
+Re-run steps 3–4 anytime you add SKUs. Env vars: `WM_BACKEND` (default `http://localhost:8787`),
+`SERPAPI_API_KEY` (optional), `ONLY_MISSING=0` to refetch everything.
+
+### Reaching it when phone and computer aren't on the same network
+
+Put a tunnel in front of the server (gives an `https://…` URL that works anywhere):
+
+```bash
+cloudflared tunnel --url http://localhost:8787      # or: ngrok http 8787
 ```
 
-Then ask the assistant to run **`list_targets`** (preview what needs photos) and
-**`find_product_images`** (find + upload them in a batch; call again to page through
-a long list). Back in the app, tap **Sync photos** to pull the results.
+Open that URL on the phone instead. (If you serve the app from somewhere else over HTTPS,
+the sync server must also be HTTPS — browsers block an HTTPS page from calling an HTTP server.
+Serving the app from this server, as above, avoids that entirely.)
+
+## Alternative: the MCP (for Claude Desktop / `claude mcp` users)
+
+`mcp/` exposes the same finder as MCP tools (`list_targets`, `find_product_images`) so you can
+drive it from a Claude client. It talks to the same backend. See `mcp/` and register it with
+`WM_BACKEND` set. The standalone `fetch-images.mjs` above does the same job without a client.
+
+## Server API
+
+`GET /` (the app) · `GET /health` · `GET|POST /labels` · `GET|POST /images` · `DELETE /images`.
+CORS-enabled. Data persists to `wm-data.json` (override with `DATA_FILE`). Images are stored as
+`data:` URIs so they render in the PDF with no cross-origin issues.
 
 ## Caveats
 
-- **World Market has no public product API.** The finder scrapes the public search
-  pages. The store SKU doubles as the site's product id (`data-pid`), and the
-  extraction in `mcp/index.mjs → worldMarketImage()` was verified against the live
-  site — a spot-check of the seed list resolved ~72% of SKUs straight from World
-  Market. The rest were items not in WM's web catalog and fall through to the
-  web-search step. If WM changes its markup, that function is what to re-tune.
-- Retail scraping should respect the site's terms and rate limits — the finder runs
-  a small batch at low concurrency by design.
-- Images are stored full-size as fetched. For a very large catalog you may want to
-  downscale server-side (e.g. add `sharp`) to keep the app's local storage light.
+- **World Market has no public product API.** The finder scrapes the public search pages. The
+  store SKU doubles as the site's product id (`data-pid`), and the product photo lives under
+  `Sites-wm-master-catalog/.../images/large/`. Verified against the live site — a spot-check of
+  the seed list resolved ~72% of SKUs straight from World Market; the rest were items not in
+  WM's web catalog and need the web-search fallback (or a per-row upload). If WM changes its
+  markup, `worldMarketImage()` in `fetch-images.mjs` / `mcp/index.mjs` is what to re-tune.
