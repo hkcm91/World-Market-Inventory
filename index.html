@@ -472,9 +472,9 @@ function showTab(name){
     function drawStripPhoto(x,yt,r){
       const W=L.SW,H=L.SH;
       const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasExp=!!(r.expiry);
-      const pad=0.14*IN, rpad=0.14*IN, imgS=0.58*IN, imgX=x+pad, imgY=yt+(H-imgS)/2;
-      const boxW=imgS, boxH=imgS, boxX=x+W-rpad-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;
-      const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-pad)-0.09*IN, textW=Math.max(10,textR-textL);
+      const M=0.14*IN, imgS=0.58*IN, imgX=x+M, imgY=yt+(H-imgS)/2;
+      const boxW=imgS, boxH=imgS, boxX=x+W-M-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;   // QTY box = image size, equal L/R margins
+      const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-M)-0.09*IN, textW=Math.max(10,textR-textL), midCx=(textL+textR)/2;
       // product image (or dashed placeholder box)
       const im=r.img?imgCache.get(r.img):null;
       if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{doc.addImage(im,'JPEG',imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);}catch(e){drawPhPDF(imgX,imgY,imgS,r);}}
@@ -488,10 +488,10 @@ function showTab(name){
       const skuAsc=nfs*0.72,dLh=dfs*1.18,dAsc=dfs*0.72,g1=0.05*IN,g2=0.05*IN;
       let blockH=skuAsc;if(lines.length)blockH+=g1+(lines.length-1)*dLh+dAsc;if(hasExp)blockH+=g2+expAsc;
       const by=yt+(H-blockH)/2+skuAsc;
-      doc.setFont("helvetica","bold");doc.setFontSize(nfs);doc.setTextColor(17,17,17);doc.text(skuTxt,textL,by,{align:"left"});
+      doc.setFont("helvetica","bold");doc.setFontSize(nfs);doc.setTextColor(17,17,17);doc.text(skuTxt,midCx,by,{align:"center"});
       let descBottom=by;
-      if(lines.length){doc.setFont("helvetica","bold");doc.setFontSize(dfs);doc.setTextColor(40,40,40);let ly=by+g1+dAsc;lines.forEach(ln=>{doc.text(ln,textL,ly,{align:"left"});descBottom=ly;ly+=dLh;});}
-      if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(150,60,55);doc.text("EXP "+fmtExp(r.expiry),textL,descBottom+g2+expAsc,{align:"left"});}
+      if(lines.length){doc.setFont("helvetica","bold");doc.setFontSize(dfs);doc.setTextColor(40,40,40);let ly=by+g1+dAsc;lines.forEach(ln=>{doc.text(ln,midCx,ly,{align:"center"});descBottom=ly;ly+=dLh;});}
+      if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(150,60,55);doc.text("EXP "+fmtExp(r.expiry),midCx,descBottom+g2+expAsc,{align:"center"});}
       // QTY box (bold, like the mock-up)
       if(hasQty){doc.setDrawColor(20,20,20);doc.setLineWidth(1.3);doc.roundedRect(boxX,boxY,boxW,boxH,3,3,'S');
         const dY=boxY+0.27*boxH;
@@ -543,9 +543,9 @@ function showTab(name){
   function drawStripCanvasPhoto(ctx,x,yt,r){
     const L=LAYOUT,W=L.SW,H=L.SH;
     const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasExp=!!r.expiry;
-    const pad=0.075*IN, imgS=0.58*IN, imgX=x+pad, imgY=yt+(H-imgS)/2;
-    const boxW=0.40*IN, boxH=0.50*IN, boxX=x+W-pad-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;
-    const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-pad)-0.09*IN, textW=Math.max(10,textR-textL);
+    const M=0.14*IN, imgS=0.58*IN, imgX=x+M, imgY=yt+(H-imgS)/2;
+    const boxW=imgS, boxH=imgS, boxX=x+W-M-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;   // QTY box = image size, equal L/R margins
+    const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-M)-0.09*IN, textW=Math.max(10,textR-textL), midCx=(textL+textR)/2;
     ctx.textBaseline='alphabetic';
     const im=r.img?imgCache.get(r.img):null;
     if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{ctx.drawImage(im,imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);}catch(e){drawPhCanvas(ctx,imgX,imgY,imgS,r);}}
@@ -559,10 +559,10 @@ function showTab(name){
     const skuAsc=nfs*0.72,dLh=dfs*1.18,dAsc=dfs*0.72,g1=0.05*IN,g2=0.05*IN;
     let blockH=skuAsc;if(lines.length)blockH+=g1+(lines.length-1)*dLh+dAsc;if(hasExp)blockH+=g2+expAsc;
     const by=yt+(H-blockH)/2+skuAsc;
-    ctx.textAlign='left';ctx.font=skuFont;ctx.fillStyle='#111';ctx.fillText(skuTxt,textL,by);
+    ctx.textAlign='center';ctx.font=skuFont;ctx.fillStyle='#111';ctx.fillText(skuTxt,midCx,by);
     let descBottom=by;
-    if(lines.length){ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#282828';let ly=by+g1+dAsc;lines.forEach(ln=>{ctx.fillText(ln,textL,ly);descBottom=ly;ly+=dLh;});}
-    if(hasExp){ctx.textAlign='left';ctx.font='bold 7px Helvetica, Arial, sans-serif';ctx.fillStyle='#963c37';ctx.fillText('EXP '+fmtExp(r.expiry),textL,descBottom+g2+expAsc);}
+    if(lines.length){ctx.textAlign='center';ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#282828';let ly=by+g1+dAsc;lines.forEach(ln=>{ctx.fillText(ln,midCx,ly);descBottom=ly;ly+=dLh;});}
+    if(hasExp){ctx.textAlign='center';ctx.font='bold 7px Helvetica, Arial, sans-serif';ctx.fillStyle='#963c37';ctx.fillText('EXP '+fmtExp(r.expiry),midCx,descBottom+g2+expAsc);}
     // QTY box
     if(hasQty){ctx.strokeStyle='#141414';ctx.lineWidth=1.3;ctx.setLineDash([]);rrect(ctx,boxX,boxY,boxW,boxH,3);ctx.stroke();
       const dY=boxY+0.27*boxH;
