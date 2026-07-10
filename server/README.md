@@ -1,11 +1,18 @@
-# Product photos: sync server + image finder
+# Product photos
 
-Two ways to get product photos onto the labels:
+**The normal way: nothing to do.** Product photos ship with the app in `photos.json` (next to
+`index.html`) and load themselves when you open the page — any label whose SKU is carried on
+worldmarket.com gets its photo automatically. Add your own for the rest with **Add photo** on
+a row, or bulk-load a `{ "sku": "image" }` file with **Import photos**.
 
-- **Import photos** (in the app) — no server. Pick a `{ "sku": "image" }` JSON file and it
-  applies the images locally. Simplest for a one-off.
-- **Sync photos** (this folder) — a small server finds product images automatically and the
-  app pulls them by SKU. Set it up once, re-run the finder whenever the list changes.
+To refresh `photos.json` (e.g. after adding SKUs), run the finder below and commit the result:
+
+```bash
+node server/fetch-images.mjs --out photos.json     # writes the bundle the app auto-loads
+```
+
+Everything past this point is **optional** — a self-hosted server so the app can pull new
+photos live instead of shipping them in `photos.json`. Most setups don't need it.
 
 ## Sync setup (the easy path)
 

@@ -115,6 +115,18 @@
   .thumb.empty{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:8px;letter-spacing:.06em;text-align:center;line-height:1.1}
   .photoctl label.pill{cursor:pointer;margin:0}
   .photoctl label.pill input{display:none}
+  /* ---- print selection / done status ---- */
+  .fchips{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .fchip{border:1px solid var(--line);background:var(--card);color:var(--muted);border-radius:999px;padding:7px 13px;font-size:13px;font-weight:700;cursor:pointer}
+  .fchip.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .striphead{display:flex;align-items:center;gap:10px;margin-bottom:2px}
+  .striphead .sku{flex:1}
+  .selwrap{display:inline-flex;align-items:center}
+  .selbox{width:22px;height:22px;accent-color:var(--accent2);cursor:pointer}
+  .dtog{white-space:nowrap}
+  .dtog.on{background:var(--accent2);color:#fff;border-color:var(--accent2)}
+  .strip.isdone{opacity:.62}
+  .strip.isdone .sku{text-decoration:line-through;text-decoration-thickness:2px}
 </style>
 </head>
 <body>
@@ -157,10 +169,13 @@
   <div class="tplrow">
     <span class="tpllabel">Template</span>
     <div class="seg"><button class="segbtn" id="tplText">Text</button><button class="segbtn" id="tplPhoto">Photo</button></div>
-    <button class="pill" id="syncImgs">Sync photos</button>
     <button class="pill" id="importImgs">Import photos</button>
+    <button class="pill" id="backupBtn">Backup</button>
+    <button class="pill" id="restoreBtn">Restore</button>
     <input id="imgImportIn" type="file" style="display:none">
+    <input id="dataIn" type="file" accept="application/json,.json" style="display:none">
   </div>
+  <div class="fchips" id="lfilter"></div>
   <div id="llist"></div>
   <button class="add-toggle" id="addToggle">+ Add a strip by hand</button>
   <div class="add-form" id="addForm">
@@ -172,7 +187,7 @@
     </div>
     <button class="send" id="fAdd">Add strip</button>
   </div>
-  <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each row is one label (one per box). <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Switch to the <b>Photo</b> template to print a product image on each label (add one per row, or <b>Import photos</b> from a SKU&rarr;image JSON file). Everything saves on this device.</p>
+  <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each row is one label (one per box). <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Switch to the <b>Photo</b> template to print a product image on each label &mdash; photos load automatically for items World Market carries online; add your own for the rest with <b>Add photo</b>. Tap <b>&#127908; Say date</b> to speak an expiry (e.g. &ldquo;August twelfth twenty twenty six&rdquo;). <b>Check</b> the labels you want, hit Download, then <b>Mark printed</b> &mdash; done ones stay in the list under <b>Printed</b> and drop out of <b>To print</b>. Set <b>Behind</b> to how many boxes of that SKU sit behind the front one and it auto-adds &ldquo;1 BEHIND&rdquo;, &ldquo;2 BEHIND&rdquo;&hellip; stock-depth labels after it. SKU info (name, qty/box, photo) is remembered, so re-adding a SKU auto-fills. <b>Backup</b> saves everything to a file; <b>Restore</b> brings it back. Everything saves on this device.</p>
 </div></div>
 
 <div class="applybar" id="applyBar"><span id="applyMsg"></span><button id="applyAll">Apply to all</button><button id="applyDismiss">Dismiss</button></div>
@@ -180,6 +195,7 @@
   <button id="previewBtn">Preview</button>
   <button class="primary" id="downloadBtn">Download</button>
   <button id="emailBtn">Email</button>
+  <button id="markBtn">&#10003; Mark printed</button>
   <button class="gold" id="moveBtn">Move dated &rarr; Expiry</button>
 </div>
 
@@ -330,21 +346,28 @@ function showTab(name){
     {sku:"668166",desc:"ROLLING PIN SUPER COLA MIX 7OZ",qty:1,perBox:12},
     {sku:"660439",desc:"KATJES SPARKLY SOUR 4.9OZ",qty:1,perBox:12}
   ];
-  const KEY="wm_labels_v1", TPLKEY="wm_label_tpl";
+  const KEY="wm_labels_v1", TPLKEY="wm_label_tpl", CATKEY="wm_catalog_v1";
   let rows=[];
   let template=(localStorage.getItem(TPLKEY)==="photo")?"photo":"text";
+  let filter="all";                                  // all | todo | done (which entries to show)
   const imgCache=new Map();   // src -> HTMLImageElement | null(failed)
+  // SKU catalog: remembers desc / qty-per-box / image per SKU so you never re-enter a SKU's info
+  let catalog={}; try{catalog=JSON.parse(localStorage.getItem(CATKEY))||{};}catch(e){catalog={};}
+  function saveCatalog(){try{localStorage.setItem(CATKEY,JSON.stringify(catalog));}catch(e){}}
+  function syncCatalog(){rows.forEach(r=>{const c=catalog[r.sku]||{};catalog[r.sku]={desc:r.desc||c.desc||"",perBox:(r.perBox!==undefined&&r.perBox!=="")?intOf(r.perBox):(c.perBox!==undefined?c.perBox:12),img:r.img||c.img||""};});saveCatalog();}
+  function catalogGet(sku){return catalog[String(sku)]||null;}
   function intOf(v){return Math.max(0,parseInt(v)||0);}
-  function expandSeed(){const out=[];SEED.forEach(s=>{const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)out.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:""});});return out;}
+  function expandSeed(){const out=[];SEED.forEach(s=>{const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)out.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:"",done:false,behind:0});});return out;}
   function loadRows(){
     let saved=null; try{saved=JSON.parse(localStorage.getItem(KEY));}catch(e){}
     if(Array.isArray(saved)&&saved.length){
-      rows=saved.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||""}));
+      rows=saved.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done,behind:Math.max(0,intOf(r.behind))}));
       const present=new Set(rows.map(r=>r.sku));
-      SEED.forEach(s=>{if(!present.has(String(s.sku))){const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)rows.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:""});}});
+      SEED.forEach(s=>{if(!present.has(String(s.sku))){const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)rows.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:"",done:false,behind:0});}});
     } else rows=expandSeed();
   }
-  function persist(){localStorage.setItem(KEY,JSON.stringify(rows));}
+  // persist a clean projection (drops the transient print-selection flag) and keep the catalog in sync
+  function persist(){localStorage.setItem(KEY,JSON.stringify(rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:r.img,done:!!r.done,behind:Math.max(0,intOf(r.behind))}))));syncCatalog();}
   // last size token from a description, e.g. "HARIBO ... BAG 4OZ" -> "4OZ"
   function parseSize(d){if(!d)return"";const re=/(\d+(?:\.\d+)?)\s*(OZ|Z|LBS?|G|KG|ML|L|CT|PK|PC|PCS|PACK|COUNT)\b/gi;let m,last="";while((m=re.exec(String(d)))!==null)last=(m[1]+m[2]).toUpperCase();return last;}
   // downscale an uploaded image file to a small JPEG data-URI so localStorage stays light
@@ -353,71 +376,131 @@ function showTab(name){
   function ensureImages(list){const srcs=[...new Set(list.map(r=>r.img).filter(Boolean))].filter(s=>!imgCache.has(s));return Promise.all(srcs.map(src=>new Promise(done=>{const im=new Image();if(/^https?:/i.test(src))im.crossOrigin='anonymous';im.onload=()=>{imgCache.set(src,im);done();};im.onerror=()=>{imgCache.set(src,null);done();};im.src=src;})));}
   function applyImages(map){let n=0;rows.forEach(r=>{const v=map[r.sku];if(typeof v==="string"&&v){r.img=v;n++;}});if(n){persist();render();}return n;}
   window.wmLabelsApplyImages=applyImages;   // hook the backend/MCP sync can call
-  function totals(){const strips=rows.length;const skus=new Set(rows.map(r=>r.sku)).size;const dated=rows.filter(r=>r.expiry).length;return {skus,strips,dated,pages:Math.max(1,Math.ceil(strips/PER_PAGE))};}
+  function totals(){const strips=rows.length;const skus=new Set(rows.map(r=>r.sku)).size;const dated=rows.filter(r=>r.expiry).length;const done=rows.filter(r=>r.done).length;const sel=rows.filter(r=>r.sel).length;const printCount=expand(printSet()).length;return {skus,strips,dated,done,todo:strips-done,sel,printCount,pages:Math.max(1,Math.ceil(Math.max(1,printCount)/PER_PAGE))};}
+  // which rows will print: the checked ones if any; otherwise the not-yet-printed ones
+  // (so you never reprint what's done). Viewing "Printed" prints the done ones.
+  function printSet(){const sel=rows.filter(r=>r.sel);if(sel.length)return sel;return rows.filter(r=>filter==="done"?r.done:!r.done);}
+  // expand each label into itself plus its "1 BEHIND".."N BEHIND" stock-depth labels
+  function expand(list){const out=[];list.forEach(r=>{out.push(r);const n=Math.max(0,intOf(r.behind));for(let k=1;k<=n;k++)out.push({isBehind:true,num:k,of:n,sku:r.sku,perBox:r.perBox});});return out;}
   function escq(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
   function render(){
     const t=totals();
-    document.getElementById("lsummary").innerHTML='<span class="chip"><b>'+t.skus+'</b> SKUs</span><span class="chip"><b>'+t.strips+'</b> labels</span><span class="chip"><b>'+t.pages+'</b> '+(t.pages===1?'page':'pages')+'</span><span class="chip"><b>'+t.dated+'</b> dated</span>';
+    document.getElementById("lsummary").innerHTML='<span class="chip"><b>'+t.skus+'</b> SKUs</span><span class="chip"><b>'+t.strips+'</b> labels</span><span class="chip"><b>'+t.printCount+'</b> to print</span><span class="chip"><b>'+t.done+'</b> done</span>';
     document.getElementById("tplText").classList.toggle("active",template==="text");
     document.getElementById("tplPhoto").classList.toggle("active",template==="photo");
+    document.getElementById("lfilter").innerHTML=[["all","All "+t.strips],["todo","To print "+t.todo],["done","Printed "+t.done]].map(f=>'<button class="fchip'+(filter===f[0]?' active':'')+'" data-f="'+f[0]+'">'+f[1]+'</button>').join("");
     const list=document.getElementById("llist");
+    const shown=rows.map((r,i)=>({r,i})).filter(o=>filter==="all"||(filter==="done"?o.r.done:!o.r.done));
     if(rows.length===0){list.innerHTML='<div class="card empty">No labels yet.</div>';}
+    else if(shown.length===0){list.innerHTML='<div class="card empty">Nothing '+(filter==="done"?"printed":"left to print")+'.</div>';}
     else{
-      list.innerHTML=rows.map((r,i)=>{
+      list.innerHTML=shown.map(({r,i})=>{
         const photoctl=template==="photo"
           ?'<div class="photoctl"><span class="lbl">Photo</span><div class="thumb'+(r.img?'':' empty')+'"'+(r.img?' style="background-image:url('+"'"+escq(r.img)+"'"+')"':'')+'>'+(r.img?'':'no img')+'</div><label class="pill sm">'+(r.img?'Replace':'Add photo')+'<input type="file" accept="image/*" data-i="'+i+'"></label>'+(r.img?'<button class="pill sm" data-i="'+i+'" data-act="imgclear">Clear</button>':'')+'</div>'
           :'';
-        return '<div class="strip"><div class="sku">'+escq(r.sku)+'</div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="dup">Duplicate</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'">'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
+        return '<div class="strip'+(r.done?' isdone':'')+'"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div><button class="pill sm dtog'+(r.done?' on':'')+'" data-i="'+i+'" data-act="done">'+(r.done?'✓ Printed':'Mark printed')+'</button></div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div></div><div class="field"><span class="lbl">Behind</span><div class="stepper"><button data-i="'+i+'" data-bd="-1">&minus;</button><input type="number" min="0" class="bdinput" value="'+Math.max(0,intOf(r.behind))+'" data-i="'+i+'"><button data-i="'+i+'" data-bd="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="dup">Duplicate</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'"><button class="pill sm" data-i="'+i+'" data-act="voicedate">🎤 Say date</button>'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
       }).join("");
     }
     const none=rows.length===0;
     document.getElementById("downloadBtn").disabled=none;
     document.getElementById("previewBtn").disabled=none;
     document.getElementById("emailBtn").disabled=none;
+    document.getElementById("markBtn").disabled=(t.printCount===0);
     document.getElementById("moveBtn").disabled=(t.dated===0);
   }
   document.getElementById("llist").addEventListener("click",e=>{
     const btn=e.target.closest("button");if(!btn)return;const i=+btn.dataset.i;
-    if(btn.dataset.act==="dup"){rows.splice(i+1,0,Object.assign({},rows[i]));persist();render();return;}
+    if(btn.dataset.act==="dup"){rows.splice(i+1,0,Object.assign({},rows[i],{sel:false,done:false}));persist();render();return;}
     if(btn.dataset.act==="rm"){rows.splice(i,1);persist();render();return;}
     if(btn.dataset.act==="expclear"){rows[i].expiry="";persist();render();return;}
     if(btn.dataset.act==="imgclear"){rows[i].img="";persist();render();return;}
+    if(btn.dataset.act==="done"){rows[i].done=!rows[i].done;rows[i].sel=false;persist();render();return;}
+    if(btn.dataset.act==="voicedate"){voiceDate(i);return;}
+    if(btn.dataset.bd){rows[i].behind=Math.max(0,intOf(rows[i].behind)+(+btn.dataset.bd));persist();render();return;}
     if(btn.dataset.d){rows[i].perBox=Math.max(0,intOf(rows[i].perBox)+(+btn.dataset.d));persist();render();maybeApply(i);}
   });
   document.getElementById("llist").addEventListener("change",e=>{
+    if(e.target.matches('input.selbox')){rows[+e.target.dataset.i].sel=e.target.checked;render();return;}
+    if(e.target.matches('input.bdinput')){const i=+e.target.dataset.i;rows[i].behind=Math.max(0,intOf(e.target.value));persist();render();return;}
     if(e.target.matches('input[type=number]')){const i=+e.target.dataset.i;rows[i].perBox=Math.max(0,intOf(e.target.value));persist();render();maybeApply(i);}
     if(e.target.matches('input[type=date]')){const i=+e.target.dataset.i;rows[i].expiry=e.target.value||"";persist();render();}
     if(e.target.matches('input[type=file]')){const i=+e.target.dataset.i,f=e.target.files&&e.target.files[0];if(!f)return;fileToThumb(f).then(uri=>{rows[i].img=uri;persist();render();}).catch(()=>alert("Couldn't read that image."));}
   });
+  document.getElementById("lfilter").addEventListener("click",e=>{const b=e.target.closest("[data-f]");if(b){filter=b.dataset.f;render();}});
+  document.getElementById("markBtn").addEventListener("click",()=>{
+    const set=printSet();if(!set.length)return;
+    if(!confirm("Mark "+set.length+" label"+(set.length>1?"s":"")+" as printed? They stay in the list (shown under “Printed”), just out of your “To print” view."))return;
+    set.forEach(r=>{r.done=true;r.sel=false;});persist();render();
+  });
+  // Backup / restore the whole labels database (entries + saved SKU catalog) as one JSON file
+  document.getElementById("backupBtn").addEventListener("click",()=>{
+    const data={v:1,rows:rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:r.img,done:!!r.done})),catalog};
+    const b=new Blob([JSON.stringify(data)],{type:"application/json"}),u=URL.createObjectURL(b),a=document.createElement("a");
+    a.href=u;a.download="worldmarket_labels_backup_"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(u);
+  });
+  document.getElementById("restoreBtn").addEventListener("click",()=>document.getElementById("dataIn").click());
+  document.getElementById("dataIn").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;const fr=new FileReader();
+    fr.onload=()=>{let d;try{d=JSON.parse(fr.result);}catch(err){alert("That file isn't valid JSON.");return;}
+      if(!d||!Array.isArray(d.rows)){alert("That doesn't look like a labels backup.");return;}
+      if(!confirm("Replace your current "+rows.length+" labels with "+d.rows.length+" from the backup?"))return;
+      rows=d.rows.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done}));
+      if(d.catalog&&typeof d.catalog==="object"){catalog=d.catalog;saveCatalog();}
+      persist();render();alert("Restored "+rows.length+" labels.");};
+    fr.onerror=()=>alert("Couldn't read that file.");fr.readAsText(f);});
+  // normalize spoken number words to digits so "August twelfth twenty twenty six" parses
+  function speechToDigits(t){
+    t=" "+String(t).toLowerCase().replace(/[-,]/g," ")+" ";
+    const ones={one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9};
+    // years: "two thousand (and) twenty six" / "twenty twenty six" -> 2026
+    t=t.replace(/\btwo thousand(?:\s+and)?\s+(twenty|thirty)\s+(one|two|three|four|five|six|seven|eight|nine)\b/g,(m,a,b)=>2000+(a==="twenty"?20:30)+ones[b]);
+    t=t.replace(/\btwo thousand(?:\s+and)?\s+(twenty|thirty)\b/g,(m,a)=>2000+(a==="twenty"?20:30));
+    t=t.replace(/\btwenty\s+(twenty|thirty)\s+(one|two|three|four|five|six|seven|eight|nine)\b/g,(m,a,b)=>2000+(a==="twenty"?20:30)+ones[b]);
+    t=t.replace(/\btwenty\s+(twenty|thirty)\b/g,(m,a)=>2000+(a==="twenty"?20:30));
+    // ordinals & cardinals for the day
+    const ord={first:1,second:2,third:3,fourth:4,fifth:5,sixth:6,seventh:7,eighth:8,ninth:9,tenth:10,eleventh:11,twelfth:12,thirteenth:13,fourteenth:14,fifteenth:15,sixteenth:16,seventeenth:17,eighteenth:18,nineteenth:19,twentieth:20,thirtieth:30};
+    t=t.replace(/\b(twenty|thirty)\s+(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)\b/g,(m,a,b)=>((a==="twenty"?20:30)+({first:1,second:2,third:3,fourth:4,fifth:5,sixth:6,seventh:7,eighth:8,ninth:9}[b])));
+    Object.keys(ord).forEach(k=>{t=t.replace(new RegExp("\\b"+k+"\\b","g"),ord[k]);});
+    t=t.replace(/\b(twenty|thirty)\s+(one|two|three|four|five|six|seven|eight|nine)\b/g,(m,a,b)=>((a==="twenty"?20:30)+ones[b]));
+    const card={twenty:20,thirty:30,nineteen:19,eighteen:18,seventeen:17,sixteen:16,fifteen:15,fourteen:14,thirteen:13,twelve:12,eleven:11,ten:10,nine:9,eight:8,seven:7,six:6,five:5,four:4,three:3,two:2,one:1};
+    Object.keys(card).forEach(k=>{t=t.replace(new RegExp("\\b"+k+"\\b","g"),card[k]);});
+    return t.replace(/\s+/g," ").trim();
+  }
+  // Speak an expiry date, e.g. "August twelfth twenty twenty six" -> fills the date (reuses the expiry parser)
+  function voiceDate(i){
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){alert("Voice input isn't supported on this browser.");return;}
+    const rc=new SR();rc.lang='en-US';rc.interimResults=false;rc.maxAlternatives=1;
+    const btn=document.querySelector('button[data-act="voicedate"][data-i="'+i+'"]');if(btn)btn.textContent='🎤 Listening…';
+    let got=false;
+    rc.onresult=ev=>{got=true;const t=ev.results[0][0].transcript;const dr=(typeof extractDate==='function')?extractDate(speechToDigits(t)):{date:null};
+      if(dr&&dr.date){rows[i].expiry=dr.date.iso;persist();render();}
+      else{render();alert('Heard: "'+t+'"\nCouldn\'t find a date. Try like "August 12 2026".');}};
+    rc.onerror=()=>{render();alert("Microphone error — please allow mic access and try again.");};
+    rc.onend=()=>{if(!got)render();};
+    try{rc.start();}catch(e){render();}
+  }
   document.getElementById("tplText").addEventListener("click",()=>{template="text";localStorage.setItem(TPLKEY,template);render();});
   document.getElementById("tplPhoto").addEventListener("click",()=>{template="photo";localStorage.setItem(TPLKEY,template);render();});
-  const BURL="wm_backend_url";
-  async function syncPhotos(){
-    let base=localStorage.getItem(BURL)||"";
-    const guess=(location.protocol==="http:"||location.protocol==="https:")?location.origin:"http://localhost:8787";
-    base=prompt("Sync server URL:",base||guess);
-    if(base==null)return; base=base.trim().replace(/\/+$/,""); if(!base){localStorage.removeItem(BURL);return;}
-    localStorage.setItem(BURL,base);
-    const btn=document.getElementById("syncImgs");btn.disabled=true;const was=btn.textContent;btn.textContent="Syncing…";
-    try{
-      // push the current label list (unique SKU + description) so the finder knows what to look for
-      const seen=new Set(),labels=[];rows.forEach(r=>{if(!seen.has(r.sku)){seen.add(r.sku);labels.push({sku:r.sku,desc:r.desc||""});}});
-      await fetch(base+"/labels",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(labels)});
-      // pull whatever images have been found so far and apply by SKU
-      const res=await fetch(base+"/images");if(!res.ok)throw new Error("HTTP "+res.status);
-      const map=await res.json();const n=applyImages(map||{});
-      if(template!=="photo"&&n){template="photo";localStorage.setItem(TPLKEY,template);render();}
-      alert(n?("Synced photos for "+n+" label"+(n>1?"s":"")+"."):"Connected. No matching photos on the server yet — run the image finder, then sync again.");
-    }catch(e){alert("Sync failed: "+e.message+"\n\nCheck the server URL and that the backend is running.");}
-    finally{btn.disabled=false;btn.textContent=was;}
+  // Product photos ship with the app (photos.json, same origin) and apply themselves on
+  // open — any SKU without an image yet gets its World Market photo. User-added photos win.
+  function autoloadBundledPhotos(){
+    if(!rows.some(r=>!r.img))return;                       // everything already has a photo
+    fetch("photos.json",{cache:"force-cache"}).then(r=>r.ok?r.json():null).then(map=>{
+      if(!map||typeof map!=="object")return;
+      let n=0;rows.forEach(r=>{if(!r.img&&typeof map[r.sku]==="string"&&map[r.sku]){r.img=map[r.sku];n++;}});
+      if(n){persist();render();}
+    }).catch(()=>{});
   }
-  document.getElementById("syncImgs").addEventListener("click",syncPhotos);
   document.getElementById("importImgs").addEventListener("click",()=>document.getElementById("imgImportIn").click());
   document.getElementById("imgImportIn").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;const fr=new FileReader();fr.onload=()=>{let map;try{map=JSON.parse(fr.result);}catch(err){alert("That file isn't valid JSON.");return;}if(!map||typeof map!=="object"||Array.isArray(map)){alert('Expected a JSON object like {"465674":"https://…/img.jpg"}.');return;}const n=applyImages(map);if(template!=="photo"){template="photo";localStorage.setItem(TPLKEY,template);render();}alert(n?("Added photos to "+n+" label"+(n>1?"s":"")+"."):"No SKUs in the file matched your labels.");};fr.onerror=()=>alert("Couldn't read that file.");fr.readAsText(f);});
   document.getElementById("addToggle").addEventListener("click",()=>document.getElementById("addForm").classList.toggle("open"));
   document.getElementById("fAdd").addEventListener("click",()=>{
     const sku=document.getElementById("fSku").value.trim();if(!sku){document.getElementById("fSku").focus();return;}
-    rows.push({sku,desc:document.getElementById("fDesc").value.trim(),perBox:Math.max(0,intOf(document.getElementById("fPer").value)),expiry:document.getElementById("fExp").value||""});
+    const cat=catalogGet(sku)||{};                                   // reuse this SKU's saved info if we've seen it
+    const desc=document.getElementById("fDesc").value.trim()||cat.desc||"";
+    const perRaw=document.getElementById("fPer").value.trim();
+    const perBox=perRaw!==""?Math.max(0,intOf(perRaw)):(cat.perBox!==undefined?cat.perBox:12);
+    rows.push({sku,desc,perBox,expiry:document.getElementById("fExp").value||"",img:cat.img||"",done:false});
     document.getElementById("fSku").value="";document.getElementById("fDesc").value="";document.getElementById("fPer").value="12";document.getElementById("fExp").value="";
     document.getElementById("addForm").classList.remove("open");persist();render();
   });
@@ -467,22 +550,39 @@ function showTab(name){
   document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")e.currentTarget.classList.remove("open");});
 
   function fmtExp(iso){const q=String(iso).split('-');if(q.length!==3)return String(iso);return (+q[1])+'/'+(+q[2])+'/'+q[0].slice(2);}
-  function stripList(){return rows.slice();}
+  function stripList(){return expand(printSet());}
+
+  // Placeholder tile for a label with no real photo — a brand-colored square with the
+  // brand word, so no photo label ever prints empty (and it's never a wrong product).
+  const PH_COLORS=[[176,80,47],[63,106,77],[201,138,43],[74,86,120],[130,90,60],[86,104,86],[150,70,92],[70,100,120],[112,92,148]];
+  function phColor(s){let h=0;s=String(s||"?");for(let k=0;k<s.length;k++)h=(h*31+s.charCodeAt(k))>>>0;return PH_COLORS[h%PH_COLORS.length];}
+  function phLabel(r){return ((r.desc||"").trim().split(/\s+/)[0]||String(r.sku)).toUpperCase();}
+  function drawPhCanvas(ctx,x,y,sz,r){const c=phColor(phLabel(r)),lab=phLabel(r);ctx.setLineDash([]);ctx.fillStyle='rgb('+c[0]+','+c[1]+','+c[2]+')';rrect(ctx,x,y,sz,sz,3);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';let fs=12;while(fs>6.5){ctx.font='bold '+fs+'px Helvetica, Arial, sans-serif';if(ctx.measureText(lab).width<=sz-0.12*IN)break;fs-=0.5;}const f='bold '+fs+'px Helvetica, Arial, sans-serif';ctx.font=f;ctx.fillText(ctxTrunc(ctx,lab,f,sz-0.10*IN),x+sz/2,y+sz/2+fs*0.35);}
 
   function buildDoc(){
     const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:"letter"});const L=LAYOUT;const strips=stripList();if(strips.length===0)return doc;
     function trunc(text,style,size,maxw){doc.setFont("helvetica",style);doc.setFontSize(size);if(doc.getTextWidth(text)<=maxw)return text;let t=text;while(t&&doc.getTextWidth(t+"\u2026")>maxw)t=t.slice(0,-1);return t+"\u2026";}
-    function drawStrip(x,yt,r){return (template==="photo")?drawStripPhoto(x,yt,r):drawStripText(x,yt,r);}
+    function drawPhPDF(x,y,sz,r){const c=phColor(phLabel(r)),lab=phLabel(r);doc.setFillColor(c[0],c[1],c[2]);doc.roundedRect(x,y,sz,sz,3,3,'F');doc.setTextColor(255,255,255);let fs=12;doc.setFont("helvetica","bold");while(fs>6.5){doc.setFontSize(fs);if(doc.getTextWidth(lab)<=sz-0.12*IN)break;fs-=0.5;}doc.setFontSize(fs);doc.text(trunc(lab,"bold",fs,sz-0.10*IN),x+sz/2,y+sz/2+fs*0.35,{align:"center"});}
+    function drawBehindPDF(x,yt,r){
+      const W=L.SW,H=L.SH,cx=x+W/2,per=Math.max(0,parseInt(r.perBox)||0),big=String(r.num)+" BEHIND";
+      doc.setDrawColor(20,20,20);doc.setLineWidth(1.1);doc.roundedRect(x+0.06*IN,yt+0.06*IN,W-0.12*IN,H-0.12*IN,5,5,'S');
+      let bf=32;doc.setFont("helvetica","bold");while(bf>14){doc.setFontSize(bf);if(doc.getTextWidth(big)<=W-0.5*IN)break;bf-=0.5;}
+      const bigBaseline=yt+H/2+bf*0.36;                 // "N BEHIND" vertically centered
+      doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(80,76,70);doc.text("SKU "+String(r.sku||""),cx,yt+0.22*IN,{align:"center"});
+      doc.setFont("helvetica","bold");doc.setFontSize(bf);doc.setTextColor(17,17,17);doc.text(big,cx,bigBaseline,{align:"center"});
+      if(per>0){doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(120,116,108);doc.text(per+" / BOX",cx,yt+H-0.13*IN,{align:"center"});}
+    }
+    function drawStrip(x,yt,r){return r.isBehind?drawBehindPDF(x,yt,r):(template==="photo")?drawStripPhoto(x,yt,r):drawStripText(x,yt,r);}
     function drawStripPhoto(x,yt,r){
       const W=L.SW,H=L.SH;
       const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasExp=!!(r.expiry);
-      const pad=0.14*IN, rpad=0.14*IN, imgS=0.58*IN, imgX=x+pad, imgY=yt+(H-imgS)/2;
-      const boxW=imgS, boxH=imgS, boxX=x+W-rpad-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;
-      const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-pad)-0.09*IN, textW=Math.max(10,textR-textL);
+      const M=0.14*IN, imgS=0.58*IN, imgX=x+M, imgY=yt+(H-imgS)/2;
+      const boxW=imgS, boxH=imgS, boxX=x+W-M-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;   // QTY box = image size, equal L/R margins
+      const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-M)-0.09*IN, textW=Math.max(10,textR-textL), midCx=(textL+textR)/2;
       // product image (or dashed placeholder box)
       const im=r.img?imgCache.get(r.img):null;
-      if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{doc.addImage(im,'JPEG',imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);}catch(e){doc.setDrawColor(205,200,190);doc.setLineWidth(0.7);doc.roundedRect(imgX,imgY,imgS,imgS,3,3,'S');}}
-      else{doc.setDrawColor(205,200,190);doc.setLineWidth(0.7);doc.roundedRect(imgX,imgY,imgS,imgS,3,3,'S');}
+      if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{doc.addImage(im,'JPEG',imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);doc.setDrawColor(20,20,20);doc.setLineWidth(1.3);doc.roundedRect(imgX,imgY,imgS,imgS,3,3,'S');}catch(e){drawPhPDF(imgX,imgY,imgS,r);}}
+      else{drawPhPDF(imgX,imgY,imgS,r);}
       // fit SKU + description, then vertically center the whole text block in the label
       let nfs=22;doc.setFont("helvetica","bold");while(nfs>11){doc.setFontSize(nfs);if(doc.getTextWidth(String(r.sku))<=textW)break;nfs-=0.5;}
       const skuTxt=trunc(String(r.sku),"bold",nfs,textW);
@@ -492,10 +592,10 @@ function showTab(name){
       const skuAsc=nfs*0.72,dLh=dfs*1.18,dAsc=dfs*0.72,g1=0.05*IN,g2=0.05*IN;
       let blockH=skuAsc;if(lines.length)blockH+=g1+(lines.length-1)*dLh+dAsc;if(hasExp)blockH+=g2+expAsc;
       const by=yt+(H-blockH)/2+skuAsc;
-      doc.setFont("helvetica","bold");doc.setFontSize(nfs);doc.setTextColor(17,17,17);doc.text(skuTxt,textL,by,{align:"left"});
+      doc.setFont("helvetica","bold");doc.setFontSize(nfs);doc.setTextColor(17,17,17);doc.text(skuTxt,midCx,by,{align:"center"});
       let descBottom=by;
-      if(lines.length){doc.setFont("helvetica","bold");doc.setFontSize(dfs);doc.setTextColor(40,40,40);let ly=by+g1+dAsc;lines.forEach(ln=>{doc.text(ln,textL,ly,{align:"left"});descBottom=ly;ly+=dLh;});}
-      if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(150,60,55);doc.text("EXP "+fmtExp(r.expiry),textL,descBottom+g2+expAsc,{align:"left"});}
+      if(lines.length){doc.setFont("helvetica","bold");doc.setFontSize(dfs);doc.setTextColor(40,40,40);let ly=by+g1+dAsc;lines.forEach(ln=>{doc.text(ln,midCx,ly,{align:"center"});descBottom=ly;ly+=dLh;});}
+      if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(150,60,55);doc.text("EXP "+fmtExp(r.expiry),midCx,descBottom+g2+expAsc,{align:"center"});}
       // QTY box (bold, like the mock-up)
       if(hasQty){doc.setDrawColor(20,20,20);doc.setLineWidth(1.3);doc.roundedRect(boxX,boxY,boxW,boxH,3,3,'S');
         const dY=boxY+0.27*boxH;
@@ -543,17 +643,28 @@ function showTab(name){
   function ctxTrunc(ctx,text,font,maxw){ctx.font=font;if(ctx.measureText(text).width<=maxw)return text;let t=text;while(t&&ctx.measureText(t+"\u2026").width>maxw)t=t.slice(0,-1);return t+"\u2026";}
   function rrect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
   function wrapCanvas(ctx,text,maxw,maxlines){const words=String(text).split(/\s+/).filter(Boolean);const lines=[];let cur="";for(const w of words){const t=cur?cur+" "+w:w;if(ctx.measureText(t).width<=maxw||!cur)cur=t;else{lines.push(cur);cur=w;}}if(cur)lines.push(cur);if(lines.length>maxlines){const kept=lines.slice(0,maxlines);let last=kept[maxlines-1]+" "+lines.slice(maxlines).join(" ");while(last&&ctx.measureText(last+"…").width>maxw)last=last.slice(0,-1);kept[maxlines-1]=last+"…";return kept;}return lines;}
-  function drawStripCanvas(ctx,x,yt,r){return (template==="photo")?drawStripCanvasPhoto(ctx,x,yt,r):drawStripCanvasText(ctx,x,yt,r);}
+  function drawBehindCanvas(ctx,x,yt,r){
+    const L=LAYOUT,W=L.SW,H=L.SH,cx=x+W/2,per=Math.max(0,parseInt(r.perBox)||0),big=String(r.num)+" BEHIND";
+    ctx.textBaseline='alphabetic';ctx.textAlign='center';ctx.setLineDash([]);
+    ctx.strokeStyle='#141414';ctx.lineWidth=1.1;rrect(ctx,x+0.06*IN,yt+0.06*IN,W-0.12*IN,H-0.12*IN,5);ctx.stroke();
+    let bf=32;while(bf>14){ctx.font='bold '+bf+'px Helvetica, Arial, sans-serif';if(ctx.measureText(big).width<=W-0.5*IN)break;bf-=0.5;}
+    const bigBaseline=yt+H/2+bf*0.36;                 // "N BEHIND" vertically centered
+    ctx.font='bold 11px Helvetica, Arial, sans-serif';ctx.fillStyle='#504c46';ctx.fillText("SKU "+String(r.sku||""),cx,yt+0.22*IN);
+    ctx.font='bold '+bf+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#111';ctx.fillText(big,cx,bigBaseline);
+    if(per>0){ctx.font='8px Helvetica, Arial, sans-serif';ctx.fillStyle='#787268';ctx.fillText(per+" / BOX",cx,yt+H-0.13*IN);}
+    ctx.textAlign='left';ctx.strokeStyle='#d9cfbe';ctx.lineWidth=0.75;rrect(ctx,x,yt,W,H,0.09*IN);ctx.stroke();
+  }
+  function drawStripCanvas(ctx,x,yt,r){return r.isBehind?drawBehindCanvas(ctx,x,yt,r):(template==="photo")?drawStripCanvasPhoto(ctx,x,yt,r):drawStripCanvasText(ctx,x,yt,r);}
   function drawStripCanvasPhoto(ctx,x,yt,r){
     const L=LAYOUT,W=L.SW,H=L.SH;
     const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasExp=!!r.expiry;
-    const pad=0.075*IN, imgS=0.58*IN, imgX=x+pad, imgY=yt+(H-imgS)/2;
-    const boxW=0.40*IN, boxH=0.50*IN, boxX=x+W-pad-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;
-    const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-pad)-0.09*IN, textW=Math.max(10,textR-textL);
+    const M=0.14*IN, imgS=0.58*IN, imgX=x+M, imgY=yt+(H-imgS)/2;
+    const boxW=imgS, boxH=imgS, boxX=x+W-M-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;   // QTY box = image size, equal L/R margins
+    const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-M)-0.09*IN, textW=Math.max(10,textR-textL), midCx=(textL+textR)/2;
     ctx.textBaseline='alphabetic';
     const im=r.img?imgCache.get(r.img):null;
-    if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{ctx.drawImage(im,imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);}catch(e){ctx.strokeStyle='#cdc8be';ctx.lineWidth=0.7;ctx.setLineDash([]);rrect(ctx,imgX,imgY,imgS,imgS,3);ctx.stroke();}}
-    else{ctx.strokeStyle='#cdc8be';ctx.lineWidth=0.7;ctx.setLineDash([]);rrect(ctx,imgX,imgY,imgS,imgS,3);ctx.stroke();}
+    if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{ctx.drawImage(im,imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);ctx.strokeStyle='#141414';ctx.lineWidth=1.3;ctx.setLineDash([]);rrect(ctx,imgX,imgY,imgS,imgS,3);ctx.stroke();}catch(e){drawPhCanvas(ctx,imgX,imgY,imgS,r);}}
+    else{drawPhCanvas(ctx,imgX,imgY,imgS,r);}
     // fit SKU + description, then vertically center the whole text block in the label
     let nfs=22;while(nfs>11){ctx.font='bold '+nfs+'px Helvetica, Arial, sans-serif';if(ctx.measureText(String(r.sku)).width<=textW)break;nfs-=0.5;}
     const skuFont='bold '+nfs+'px Helvetica, Arial, sans-serif',skuTxt=ctxTrunc(ctx,String(r.sku),skuFont,textW);
@@ -563,10 +674,10 @@ function showTab(name){
     const skuAsc=nfs*0.72,dLh=dfs*1.18,dAsc=dfs*0.72,g1=0.05*IN,g2=0.05*IN;
     let blockH=skuAsc;if(lines.length)blockH+=g1+(lines.length-1)*dLh+dAsc;if(hasExp)blockH+=g2+expAsc;
     const by=yt+(H-blockH)/2+skuAsc;
-    ctx.textAlign='left';ctx.font=skuFont;ctx.fillStyle='#111';ctx.fillText(skuTxt,textL,by);
+    ctx.textAlign='center';ctx.font=skuFont;ctx.fillStyle='#111';ctx.fillText(skuTxt,midCx,by);
     let descBottom=by;
-    if(lines.length){ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#282828';let ly=by+g1+dAsc;lines.forEach(ln=>{ctx.fillText(ln,textL,ly);descBottom=ly;ly+=dLh;});}
-    if(hasExp){ctx.textAlign='left';ctx.font='bold 7px Helvetica, Arial, sans-serif';ctx.fillStyle='#963c37';ctx.fillText('EXP '+fmtExp(r.expiry),textL,descBottom+g2+expAsc);}
+    if(lines.length){ctx.textAlign='center';ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#282828';let ly=by+g1+dAsc;lines.forEach(ln=>{ctx.fillText(ln,midCx,ly);descBottom=ly;ly+=dLh;});}
+    if(hasExp){ctx.textAlign='center';ctx.font='bold 7px Helvetica, Arial, sans-serif';ctx.fillStyle='#963c37';ctx.fillText('EXP '+fmtExp(r.expiry),midCx,descBottom+g2+expAsc);}
     // QTY box
     if(hasQty){ctx.strokeStyle='#141414';ctx.lineWidth=1.3;ctx.setLineDash([]);rrect(ctx,boxX,boxY,boxW,boxH,3);ctx.stroke();
       const dY=boxY+0.27*boxH;
@@ -624,7 +735,7 @@ function showTab(name){
     }
   }
 
-  loadRows();render();
+  loadRows();syncCatalog();render();autoloadBundledPhotos();
 })();
 </script>
 </body>
