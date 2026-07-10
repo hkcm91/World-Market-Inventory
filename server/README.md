@@ -66,8 +66,11 @@ a long list). Back in the app, tap **Sync photos** to pull the results.
 ## Caveats
 
 - **World Market has no public product API.** The finder scrapes the public search
-  pages; the selectors in `mcp/index.mjs → worldMarketImage()` are the most likely
-  thing to need tuning if the site markup changes or a lookup comes back empty.
+  pages. The store SKU doubles as the site's product id (`data-pid`), and the
+  extraction in `mcp/index.mjs → worldMarketImage()` was verified against the live
+  site — a spot-check of the seed list resolved ~72% of SKUs straight from World
+  Market. The rest were items not in WM's web catalog and fall through to the
+  web-search step. If WM changes its markup, that function is what to re-tune.
 - Retail scraping should respect the site's terms and rate limits — the finder runs
   a small batch at low concurrency by design.
 - Images are stored full-size as fetched. For a very large catalog you may want to

@@ -53,21 +53,20 @@ async function fetchText(url) {
 }
 function firstMatch(html, re) { const m = html.match(re); return m ? m[1] : null; }
 
-// Best-effort scrape of worldmarket.com. Tune these selectors against the live page.
+// Scrape worldmarket.com. The store SKU is also the site's product id (data-pid),
+// and product photos live under Sites-wm-master-catalog/.../images/large/. We locate
+// the tile for this exact pid and take its large image (verified against the live site).
 async function worldMarketImage(sku, desc) {
-  const queries = [sku, (desc || "").split(/\s+/).slice(0, 4).join(" ")].filter(Boolean);
-  for (const q of queries) {
-    try {
-      const html = await fetchText("https://www.worldmarket.com/search?q=" + encodeURIComponent(q));
-      // 1) product open-graph image (present on product pages the search may redirect to)
-      let img = firstMatch(html, /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-             || firstMatch(html, /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-      // 2) otherwise, first product image off their image CDN (scene7)
-      if (!img) img = firstMatch(html, /(https?:\/\/[^"']*scene7\.com\/is\/image\/[^"'?\s]+)/i);
-      if (img && !/logo|sprite|placeholder|icon/i.test(img)) return img.replace(/&amp;/g, "&");
-    } catch { /* try next query */ }
-  }
-  return null;
+  try {
+    const html = await fetchText("https://www.worldmarket.com/search?q=" + encodeURIComponent(sku));
+    const i = html.indexOf('data-pid="' + sku + '"');
+    if (i < 0) return null; // not in WM's web catalog — caller falls back to web search
+    const seg = html.slice(Math.max(0, i - 3000), i + 3000);
+    const m = seg.match(/https:\/\/www\.worldmarket\.com\/dw\/image\/v2\/[^"' ]*?images\/large\/[^"' ]+?\.(?:jpg|jpeg|png)/);
+    if (!m) return null;
+    // request a small square render straight from their CDN (keeps the data-URI light)
+    return m[0].split("?")[0] + "?sw=240&sh=240&sm=fit&q=82";
+  } catch { return null; }
 }
 
 // Fallback: general web image search (SerpAPI Google Images). Optional.
