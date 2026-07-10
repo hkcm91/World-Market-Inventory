@@ -414,10 +414,10 @@ function showTab(name){
       const descBaseline=yt+0.85*IN;
       let expTxt=hasExp?("EXP "+fmtExp(r.expiry)):"",expW=0;
       if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(8);expW=doc.getTextWidth(expTxt)+0.06*IN;}
-      const descMaxW=W-2*padX-expW;
+      const descMaxW=W-2*padX-expW, descCx=(x+padX+(x+W-padX-expW))/2;
       if(hasDesc){
         let dfs=8.5,dtext=String(r.desc);doc.setFont("helvetica","bold");while(dfs>6){doc.setFontSize(dfs);if(doc.getTextWidth(dtext)<=descMaxW)break;dfs-=0.25;}
-        dtext=trunc(dtext,"bold",dfs,descMaxW);doc.setFont("helvetica","bold");doc.setFontSize(dfs);doc.setTextColor(40,40,40);doc.text(dtext,x+padX,descBaseline,{align:"left"});
+        dtext=trunc(dtext,"bold",dfs,descMaxW);doc.setFont("helvetica","bold");doc.setFontSize(dfs);doc.setTextColor(40,40,40);doc.text(dtext,descCx,descBaseline,{align:"center"});
       }
       if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(150,60,55);doc.text(expTxt,x+W-padX,descBaseline,{align:"right"});}
     }
@@ -451,12 +451,12 @@ function showTab(name){
     const descBaseline=yt+0.85*IN;
     let expTxt=hasExp?('EXP '+fmtExp(r.expiry)):'',expW=0;
     if(hasExp){ctx.font='bold 8px Helvetica, Arial, sans-serif';expW=ctx.measureText(expTxt).width+0.06*IN;}
-    const descMaxW=W-2*padX-expW;
+    const descMaxW=W-2*padX-expW, descCx=(x+padX+(x+W-padX-expW))/2;
     if(hasDesc){
       let dfs=8.5,dtext=String(r.desc),f='bold 8.5px Helvetica, Arial, sans-serif';
       while(dfs>6){f='bold '+dfs+'px Helvetica, Arial, sans-serif';ctx.font=f;if(ctx.measureText(dtext).width<=descMaxW)break;dfs-=0.25;}
       f='bold '+dfs+'px Helvetica, Arial, sans-serif';dtext=ctxTrunc(ctx,dtext,f,descMaxW);
-      ctx.textAlign='left';ctx.font=f;ctx.fillStyle='#282828';ctx.fillText(dtext,x+padX,descBaseline);
+      ctx.textAlign='center';ctx.font=f;ctx.fillStyle='#282828';ctx.fillText(dtext,descCx,descBaseline);
     }
     if(hasExp){ctx.textAlign='right';ctx.font='bold 8px Helvetica, Arial, sans-serif';ctx.fillStyle='#963c37';ctx.fillText(expTxt,x+W-padX,descBaseline);}
     ctx.textAlign='left';ctx.strokeStyle='#d9cfbe';ctx.lineWidth=0.75;ctx.setLineDash([]);rrect(ctx,x,yt,L.SW,L.SH,0.09*IN);ctx.stroke();
