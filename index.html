@@ -99,6 +99,7 @@
   .modal-head b{font-size:14px}
   .modal-head button{border:none;background:transparent;font-size:20px;color:var(--muted)}
   .pvhost{flex:1;overflow:auto;background:#e9e2d4;padding:14px}
+  .pvtip{font-size:12px;color:#9a2f14;font-weight:600;padding:8px 14px;background:#fbeee9;border-bottom:1px solid var(--line)}
   .note{font-size:12px;color:var(--muted);line-height:1.5;margin:14px 2px 0}
   .note b{color:var(--ink)}
 </style>
@@ -151,7 +152,7 @@
     </div>
     <button class="send" id="fAdd">Add strip</button>
   </div>
-  <p class="note">Each row is one label &mdash; created from the QTY on your SKU list, one per box. <b>Qty/box</b> is printed on the label; set it to 0 to print with no number. Use <b>Duplicate</b>/<b>Remove</b> to adjust. Set a date to print it as a third line and to include it when you tap <b>Move dated &rarr; Expiry</b>. Everything saves on this device. Print at 100% / Actual Size onto Avery 5160 sheets.</p>
+  <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each row is one label (one per box). <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Everything saves on this device.</p>
 </div></div>
 
 <div class="applybar" id="applyBar"><span id="applyMsg"></span><button id="applyAll">Apply to all</button><button id="applyDismiss">Dismiss</button></div>
@@ -164,6 +165,7 @@
 
 <div class="modal" id="modal"><div class="modal-inner">
   <div class="modal-head"><b>Print preview</b><button id="closeModal">&times;</button></div>
+  <div class="pvtip">Print at 100% / Actual Size (turn off "Fit to page").</div>
   <div class="pvhost" id="pvHost"></div>
 </div></div>
 
@@ -257,7 +259,6 @@ function downloadCSV(){var b=new Blob([csv()],{type:'text/csv'}),u=URL.createObj
 function emailBoss(){var body=encodeURIComponent(csv());var subj=encodeURIComponent('World Market Expiry \u2014 '+new Date().toLocaleDateString());window.location.href='mailto:?subject='+subj+'&body='+body;}
 function backup(){var b=new Blob([JSON.stringify(db,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='worldmarket_expiry_backup.json';a.click();URL.revokeObjectURL(u);}
 function restore(e){var f=e.target.files[0];if(!f)return;var r=new FileReader();r.onload=function(){try{var j=JSON.parse(r.result);db.expiry=j.expiry||[];save();render();setStatus('\ud83d\udcbe Restored.');}catch(err){setStatus('Bad backup file.',true);}};r.readAsText(f);}
-/* exposed so the Labels tab can push dated items in (deduped by sku+exp) */
 window.expiryAddItems=function(items){var added=0;items.forEach(function(it){var dup=db.expiry.some(function(x){return it.exp&&x.sku===it.sku&&x.exp===it.exp;});if(!dup){db.expiry.push(it);added++;}});save();render();return added;};
 document.getElementById('cmd').addEventListener('keydown',function(e){if(e.key==='Enter')run(e.target.value);});
 load();render();
@@ -357,7 +358,6 @@ function showTab(name){
     document.getElementById("addForm").classList.remove("open");persist();render();
   });
 
-  /* apply-to-all */
   let pendingApply=null;
   const applyBar=document.getElementById('applyBar'), applyMsg=document.getElementById('applyMsg');
   function hideApply(){pendingApply=null;applyBar.classList.remove('show');}
@@ -365,7 +365,6 @@ function showTab(name){
   document.getElementById('applyAll').addEventListener('click',()=>{if(!pendingApply)return;rows.forEach(r=>{if(r.sku===pendingApply.sku)r.perBox=pendingApply.val;});persist();render();hideApply();});
   document.getElementById('applyDismiss').addEventListener('click',hideApply);
 
-  /* move dated -> expiry */
   document.getElementById("moveBtn").addEventListener("click",()=>{
     const dated=rows.filter(r=>r.expiry);
     if(!dated.length){return;}
@@ -379,7 +378,6 @@ function showTab(name){
     alert("Moved "+added+" item(s) to the Expiry list"+(added<items.length?" ("+(items.length-added)+" already there)":"")+".");
   });
 
-  /* actions */
   document.getElementById("downloadBtn").addEventListener("click",()=>{if(totals().strips===0)return;buildDoc().save("sku_labels.pdf");});
   document.getElementById("emailBtn").addEventListener("click",()=>{const t=totals();if(t.strips===0)return;buildDoc().save("sku_labels.pdf");const su=encodeURIComponent("Top stock SKU labels ("+t.strips+" labels)");const body=encodeURIComponent("Label sheet attached.\n\n"+t.strips+" labels \u00b7 "+t.pages+" page"+(t.pages>1?"s":"")+".");window.location.href="mailto:"+EMAIL_TO+"?subject="+su+"&body="+body;});
   document.getElementById("previewBtn").addEventListener("click",()=>{document.getElementById("modal").classList.add("open");requestAnimationFrame(renderPreview);});
@@ -394,21 +392,24 @@ function showTab(name){
     function trunc(text,style,size,maxw){doc.setFont("helvetica",style);doc.setFontSize(size);if(doc.getTextWidth(text)<=maxw)return text;let t=text;while(t&&doc.getTextWidth(t+"\u2026")>maxw)t=t.slice(0,-1);return t+"\u2026";}
     function drawStrip(x,yt,r){
       const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasDesc=!!(r.desc),hasExp=!!(r.expiry);
-      const G=0.28*IN,vgap=0.08,cx=x+L.SW/2;
-      const hasRow2=hasDesc||hasQty,r2cap=Math.max(hasDesc?0.11:0,hasQty?0.08:0);
-      const present=[{c:0.28,d:0}];if(hasRow2)present.push({c:r2cap,d:hasDesc?0.03:0});if(hasExp)present.push({c:0.10,d:0.025});
-      let H=present[0].c;for(let i=1;i<present.length;i++)H+=vgap+present[i].c;H+=present[present.length-1].d;
-      let acc=(L.SH/IN-H)/2;const B=[];for(let i=0;i<present.length;i++){if(i>0)acc+=vgap;acc+=present[i].c;B.push(acc*IN);}
-      let bi=0;const y1=B[bi++],y2=hasRow2?B[bi++]:0,yE=hasExp?B[bi++]:0;
+      const G=0.28*IN,vgap=0.055,cx=x+L.SW/2;
       let numW=0,qtyW=0,rightW=0;
       if(hasQty){doc.setFont("helvetica","bold");doc.setFontSize(26);numW=doc.getTextWidth(String(per));doc.setFontSize(8);qtyW=doc.getTextWidth("QTY");rightW=Math.max(numW,qtyW);}
       doc.setFont("helvetica","bold");doc.setFontSize(28);
       const sku=trunc(String(r.sku),"bold",28,1.55*IN),skuW=doc.getTextWidth(sku);
+      let dfs=11,dtext=String(r.desc||"");
+      if(hasDesc){const dmax=L.SW-0.14*IN;doc.setFont("helvetica","normal");while(dfs>7){doc.setFontSize(dfs);if(doc.getTextWidth(dtext)<=dmax)break;dfs-=0.5;}dtext=trunc(dtext,"normal",dfs,dmax);}
+      const present=[{c:0.28,d:0}];
+      if(hasQty)present.push({c:0.075,d:0});
+      if(hasDesc)present.push({c:dfs*0.70/72,d:dfs*0.16/72});
+      if(hasExp)present.push({c:0.10,d:0.025});
+      let H=present[0].c;for(let i=1;i<present.length;i++)H+=vgap+present[i].c;H+=present[present.length-1].d;
+      let acc=(L.SH/IN-H)/2;const B=[];for(let i=0;i<present.length;i++){if(i>0)acc+=vgap;acc+=present[i].c;B.push(acc*IN);}
+      let bi=0;const y1=B[bi++],yQ=hasQty?B[bi++]:0,yD=hasDesc?B[bi++]:0,yE=hasExp?B[bi++]:0;
       const rowW=skuW+(hasQty?(G+rightW):0);const start=x+(L.SW-rowW)/2,lcx=start+skuW/2,rcx=start+skuW+G+rightW/2;
       doc.setFont("helvetica","bold");doc.setFontSize(28);doc.setTextColor(17,17,17);doc.text(sku,lcx,yt+y1,{align:"center"});
-      if(hasQty){doc.setFont("helvetica","bold");doc.setFontSize(26);doc.setTextColor(17,17,17);doc.text(String(per),rcx,yt+y1,{align:"center"});}
-      if(hasDesc){const rl=(hasQty?(rcx-rightW/2):(x+L.SW-0.06*IN))-0.07*IN;const half=Math.min(lcx-(x+0.06*IN),rl-lcx);doc.setFont("helvetica","normal");doc.setFontSize(11);doc.setTextColor(120,120,116);doc.text(trunc(String(r.desc),"normal",11,Math.max(0.4*IN,2*half)),lcx,yt+y2,{align:"center"});}
-      if(hasQty){doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(140,140,136);doc.text("QTY",rcx,yt+y2,{align:"center"});}
+      if(hasQty){doc.setFont("helvetica","bold");doc.setFontSize(26);doc.setTextColor(17,17,17);doc.text(String(per),rcx,yt+y1,{align:"center"});doc.setFont("helvetica","bold");doc.setFontSize(8);doc.setTextColor(140,140,136);doc.text("QTY",rcx,yt+yQ,{align:"center"});}
+      if(hasDesc){doc.setFont("helvetica","normal");doc.setFontSize(dfs);doc.setTextColor(90,86,78);doc.text(dtext,cx,yt+yD,{align:"center"});}
       if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(10);doc.setTextColor(150,60,55);doc.text("EXP "+fmtExp(r.expiry),cx,yt+yE,{align:"center"});}
     }
     for(let ps=0;ps<strips.length;ps+=L.PER){if(ps>0)doc.addPage();const page=strips.slice(ps,ps+L.PER);page.forEach((r,slot)=>{const row=Math.floor(slot/L.COLS),col=slot%L.COLS;drawStrip(L.MX+col*(L.SW+L.GUT),L.MT+row*L.SH,r);});}
@@ -419,21 +420,24 @@ function showTab(name){
   function rrect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
   function drawStripCanvas(ctx,x,yt,r){
     const L=LAYOUT;const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasDesc=!!(r.desc),hasExp=!!(r.expiry);
-    const G=0.28*IN,vgap=0.08,cx=x+L.SW/2;
-    const hasRow2=hasDesc||hasQty,r2cap=Math.max(hasDesc?0.11:0,hasQty?0.08:0);
-    const present=[{c:0.28,d:0}];if(hasRow2)present.push({c:r2cap,d:hasDesc?0.03:0});if(hasExp)present.push({c:0.10,d:0.025});
-    let H=present[0].c;for(let i=1;i<present.length;i++)H+=vgap+present[i].c;H+=present[present.length-1].d;
-    let acc=(L.SH/IN-H)/2;const B=[];for(let i=0;i<present.length;i++){if(i>0)acc+=vgap;acc+=present[i].c;B.push(acc*IN);}
-    let bi=0;const y1=B[bi++],y2=hasRow2?B[bi++]:0,yE=hasExp?B[bi++]:0;
+    const G=0.28*IN,vgap=0.055,cx=x+L.SW/2;
     ctx.textBaseline='alphabetic';ctx.textAlign='center';
     let numW=0,qtyW=0,rightW=0;
     if(hasQty){ctx.font='bold 26px Helvetica, Arial, sans-serif';numW=ctx.measureText(String(per)).width;ctx.font='bold 8px Helvetica, Arial, sans-serif';qtyW=ctx.measureText('QTY').width;rightW=Math.max(numW,qtyW);}
     const skuFont='bold 28px Helvetica, Arial, sans-serif';const sku=ctxTrunc(ctx,String(r.sku),skuFont,1.55*IN);ctx.font=skuFont;const skuW=ctx.measureText(sku).width;
+    let dfs=11,dtext=String(r.desc||"");
+    if(hasDesc){const dmax=L.SW-0.14*IN;let f='11px Helvetica, Arial, sans-serif';while(dfs>7){f=dfs+'px Helvetica, Arial, sans-serif';ctx.font=f;if(ctx.measureText(dtext).width<=dmax)break;dfs-=0.5;}f=dfs+'px Helvetica, Arial, sans-serif';dtext=ctxTrunc(ctx,dtext,f,dmax);}
+    const present=[{c:0.28,d:0}];
+    if(hasQty)present.push({c:0.075,d:0});
+    if(hasDesc)present.push({c:dfs*0.70/72,d:dfs*0.16/72});
+    if(hasExp)present.push({c:0.10,d:0.025});
+    let H=present[0].c;for(let i=1;i<present.length;i++)H+=vgap+present[i].c;H+=present[present.length-1].d;
+    let acc=(L.SH/IN-H)/2;const B=[];for(let i=0;i<present.length;i++){if(i>0)acc+=vgap;acc+=present[i].c;B.push(acc*IN);}
+    let bi=0;const y1=B[bi++],yQ=hasQty?B[bi++]:0,yD=hasDesc?B[bi++]:0,yE=hasExp?B[bi++]:0;
     const rowW=skuW+(hasQty?(G+rightW):0);const start=x+(L.SW-rowW)/2,lcx=start+skuW/2,rcx=start+skuW+G+rightW/2;
     ctx.font=skuFont;ctx.fillStyle='#111';ctx.fillText(sku,lcx,yt+y1);
-    if(hasQty){ctx.font='bold 26px Helvetica, Arial, sans-serif';ctx.fillStyle='#111';ctx.fillText(String(per),rcx,yt+y1);}
-    if(hasDesc){const rl=(hasQty?(rcx-rightW/2):(x+L.SW-0.06*IN))-0.07*IN;const half=Math.min(lcx-(x+0.06*IN),rl-lcx);ctx.font='11px Helvetica, Arial, sans-serif';ctx.fillStyle='#78786f';ctx.fillText(ctxTrunc(ctx,String(r.desc),'11px Helvetica, Arial, sans-serif',Math.max(0.4*IN,2*half)),lcx,yt+y2);}
-    if(hasQty){ctx.font='bold 8px Helvetica, Arial, sans-serif';ctx.fillStyle='#8c8c88';ctx.fillText('QTY',rcx,yt+y2);}
+    if(hasQty){ctx.font='bold 26px Helvetica, Arial, sans-serif';ctx.fillStyle='#111';ctx.fillText(String(per),rcx,yt+y1);ctx.font='bold 8px Helvetica, Arial, sans-serif';ctx.fillStyle='#8c8c88';ctx.fillText('QTY',rcx,yt+yQ);}
+    if(hasDesc){ctx.font=dfs+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#5a564e';ctx.fillText(dtext,cx,yt+yD);}
     if(hasExp){ctx.font='bold 10px Helvetica, Arial, sans-serif';ctx.fillStyle='#963c37';ctx.fillText('EXP '+fmtExp(r.expiry),cx,yt+yE);}
     ctx.textAlign='left';ctx.strokeStyle='#d9cfbe';ctx.lineWidth=0.75;ctx.setLineDash([]);rrect(ctx,x,yt,L.SW,L.SH,0.09*IN);ctx.stroke();
   }
