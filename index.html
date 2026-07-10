@@ -477,7 +477,7 @@ function showTab(name){
       const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-M)-0.09*IN, textW=Math.max(10,textR-textL), midCx=(textL+textR)/2;
       // product image (or dashed placeholder box)
       const im=r.img?imgCache.get(r.img):null;
-      if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{doc.addImage(im,'JPEG',imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);}catch(e){drawPhPDF(imgX,imgY,imgS,r);}}
+      if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{doc.addImage(im,'JPEG',imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);doc.setDrawColor(20,20,20);doc.setLineWidth(1.3);doc.roundedRect(imgX,imgY,imgS,imgS,3,3,'S');}catch(e){drawPhPDF(imgX,imgY,imgS,r);}}
       else{drawPhPDF(imgX,imgY,imgS,r);}
       // fit SKU + description, then vertically center the whole text block in the label
       let nfs=22;doc.setFont("helvetica","bold");while(nfs>11){doc.setFontSize(nfs);if(doc.getTextWidth(String(r.sku))<=textW)break;nfs-=0.5;}
@@ -548,7 +548,7 @@ function showTab(name){
     const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-M)-0.09*IN, textW=Math.max(10,textR-textL), midCx=(textL+textR)/2;
     ctx.textBaseline='alphabetic';
     const im=r.img?imgCache.get(r.img):null;
-    if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{ctx.drawImage(im,imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);}catch(e){drawPhCanvas(ctx,imgX,imgY,imgS,r);}}
+    if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{ctx.drawImage(im,imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);ctx.strokeStyle='#141414';ctx.lineWidth=1.3;ctx.setLineDash([]);rrect(ctx,imgX,imgY,imgS,imgS,3);ctx.stroke();}catch(e){drawPhCanvas(ctx,imgX,imgY,imgS,r);}}
     else{drawPhCanvas(ctx,imgX,imgY,imgS,r);}
     // fit SKU + description, then vertically center the whole text block in the label
     let nfs=22;while(nfs>11){ctx.font='bold '+nfs+'px Helvetica, Arial, sans-serif';if(ctx.measureText(String(r.sku)).width<=textW)break;nfs-=0.5;}
