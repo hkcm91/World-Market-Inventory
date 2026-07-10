@@ -476,7 +476,7 @@ function showTab(name){
       const W=L.SW,H=L.SH;
       const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasExp=!!(r.expiry);
       const pad=0.075*IN, rpad=0.17*IN, imgS=0.58*IN, imgX=x+pad, imgY=yt+(H-imgS)/2;
-      const boxW=0.47*IN, boxH=0.60*IN, boxX=x+W-rpad-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;
+      const boxW=0.62*IN, boxH=0.64*IN, boxX=x+W-rpad-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;
       const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-pad)-0.09*IN, textW=Math.max(10,textR-textL);
       // product image (or dashed placeholder box)
       const im=r.img?imgCache.get(r.img):null;
