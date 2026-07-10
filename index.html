@@ -457,9 +457,17 @@ function showTab(name){
   function fmtExp(iso){const q=String(iso).split('-');if(q.length!==3)return String(iso);return (+q[1])+'/'+(+q[2])+'/'+q[0].slice(2);}
   function stripList(){return rows.slice();}
 
+  // Placeholder tile for a label with no real photo — a brand-colored square with the
+  // brand word, so no photo label ever prints empty (and it's never a wrong product).
+  const PH_COLORS=[[176,80,47],[63,106,77],[201,138,43],[74,86,120],[130,90,60],[86,104,86],[150,70,92],[70,100,120],[112,92,148]];
+  function phColor(s){let h=0;s=String(s||"?");for(let k=0;k<s.length;k++)h=(h*31+s.charCodeAt(k))>>>0;return PH_COLORS[h%PH_COLORS.length];}
+  function phLabel(r){return ((r.desc||"").trim().split(/\s+/)[0]||String(r.sku)).toUpperCase();}
+  function drawPhCanvas(ctx,x,y,sz,r){const c=phColor(phLabel(r)),lab=phLabel(r);ctx.setLineDash([]);ctx.fillStyle='rgb('+c[0]+','+c[1]+','+c[2]+')';rrect(ctx,x,y,sz,sz,3);ctx.fill();ctx.fillStyle='#fff';ctx.textAlign='center';let fs=12;while(fs>6.5){ctx.font='bold '+fs+'px Helvetica, Arial, sans-serif';if(ctx.measureText(lab).width<=sz-0.12*IN)break;fs-=0.5;}const f='bold '+fs+'px Helvetica, Arial, sans-serif';ctx.font=f;ctx.fillText(ctxTrunc(ctx,lab,f,sz-0.10*IN),x+sz/2,y+sz/2+fs*0.35);}
+
   function buildDoc(){
     const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:"letter"});const L=LAYOUT;const strips=stripList();if(strips.length===0)return doc;
     function trunc(text,style,size,maxw){doc.setFont("helvetica",style);doc.setFontSize(size);if(doc.getTextWidth(text)<=maxw)return text;let t=text;while(t&&doc.getTextWidth(t+"\u2026")>maxw)t=t.slice(0,-1);return t+"\u2026";}
+    function drawPhPDF(x,y,sz,r){const c=phColor(phLabel(r)),lab=phLabel(r);doc.setFillColor(c[0],c[1],c[2]);doc.roundedRect(x,y,sz,sz,3,3,'F');doc.setTextColor(255,255,255);let fs=12;doc.setFont("helvetica","bold");while(fs>6.5){doc.setFontSize(fs);if(doc.getTextWidth(lab)<=sz-0.12*IN)break;fs-=0.5;}doc.setFontSize(fs);doc.text(trunc(lab,"bold",fs,sz-0.10*IN),x+sz/2,y+sz/2+fs*0.35,{align:"center"});}
     function drawStrip(x,yt,r){return (template==="photo")?drawStripPhoto(x,yt,r):drawStripText(x,yt,r);}
     function drawStripPhoto(x,yt,r){
       const W=L.SW,H=L.SH;
@@ -469,8 +477,8 @@ function showTab(name){
       const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-pad)-0.09*IN, textW=Math.max(10,textR-textL);
       // product image (or dashed placeholder box)
       const im=r.img?imgCache.get(r.img):null;
-      if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{doc.addImage(im,'JPEG',imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);}catch(e){doc.setDrawColor(205,200,190);doc.setLineWidth(0.7);doc.roundedRect(imgX,imgY,imgS,imgS,3,3,'S');}}
-      else{doc.setDrawColor(205,200,190);doc.setLineWidth(0.7);doc.roundedRect(imgX,imgY,imgS,imgS,3,3,'S');}
+      if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{doc.addImage(im,'JPEG',imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);}catch(e){drawPhPDF(imgX,imgY,imgS,r);}}
+      else{drawPhPDF(imgX,imgY,imgS,r);}
       // fit SKU + description, then vertically center the whole text block in the label
       let nfs=22;doc.setFont("helvetica","bold");while(nfs>11){doc.setFontSize(nfs);if(doc.getTextWidth(String(r.sku))<=textW)break;nfs-=0.5;}
       const skuTxt=trunc(String(r.sku),"bold",nfs,textW);
@@ -540,8 +548,8 @@ function showTab(name){
     const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-pad)-0.09*IN, textW=Math.max(10,textR-textL);
     ctx.textBaseline='alphabetic';
     const im=r.img?imgCache.get(r.img):null;
-    if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{ctx.drawImage(im,imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);}catch(e){ctx.strokeStyle='#cdc8be';ctx.lineWidth=0.7;ctx.setLineDash([]);rrect(ctx,imgX,imgY,imgS,imgS,3);ctx.stroke();}}
-    else{ctx.strokeStyle='#cdc8be';ctx.lineWidth=0.7;ctx.setLineDash([]);rrect(ctx,imgX,imgY,imgS,imgS,3);ctx.stroke();}
+    if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{ctx.drawImage(im,imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);}catch(e){drawPhCanvas(ctx,imgX,imgY,imgS,r);}}
+    else{drawPhCanvas(ctx,imgX,imgY,imgS,r);}
     // fit SKU + description, then vertically center the whole text block in the label
     let nfs=22;while(nfs>11){ctx.font='bold '+nfs+'px Helvetica, Arial, sans-serif';if(ctx.measureText(String(r.sku)).width<=textW)break;nfs-=0.5;}
     const skuFont='bold '+nfs+'px Helvetica, Arial, sans-serif',skuTxt=ctxTrunc(ctx,String(r.sku),skuFont,textW);
