@@ -475,8 +475,8 @@ function showTab(name){
     function drawStripPhoto(x,yt,r){
       const W=L.SW,H=L.SH;
       const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasExp=!!(r.expiry);
-      const pad=0.075*IN, imgS=0.58*IN, imgX=x+pad, imgY=yt+(H-imgS)/2;
-      const boxW=0.47*IN, boxH=0.60*IN, boxX=x+W-pad-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;
+      const pad=0.075*IN, rpad=0.17*IN, imgS=0.58*IN, imgX=x+pad, imgY=yt+(H-imgS)/2;
+      const boxW=0.47*IN, boxH=0.60*IN, boxX=x+W-rpad-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;
       const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-pad)-0.09*IN, textW=Math.max(10,textR-textL);
       // product image (or dashed placeholder box)
       const im=r.img?imgCache.get(r.img):null;
@@ -487,16 +487,14 @@ function showTab(name){
       const skuTxt=trunc(String(r.sku),"bold",nfs,textW);
       let dfs=7,lines=[];
       if(r.desc){doc.setFont("helvetica","bold");while(dfs>5){doc.setFontSize(dfs);lines=doc.splitTextToSize(String(r.desc),textW);if(lines.length<=2)break;dfs-=0.25;}if(lines.length>2){lines=lines.slice(0,2);lines[1]=trunc(lines[1],"bold",dfs,textW);}}
-      const sz=parseSize(r.desc),hasSizeRow=!!(sz||hasExp);
-      const skuAsc=nfs*0.72,dLh=dfs*1.18,dAsc=dfs*0.72,szAsc=6.8*0.72,g1=0.05*IN,g2=0.045*IN;
-      let blockH=skuAsc;if(lines.length)blockH+=g1+(lines.length-1)*dLh+dAsc;if(hasSizeRow)blockH+=g2+szAsc;
+      const expAsc=7*0.72;
+      const skuAsc=nfs*0.72,dLh=dfs*1.18,dAsc=dfs*0.72,g1=0.05*IN,g2=0.05*IN;
+      let blockH=skuAsc;if(lines.length)blockH+=g1+(lines.length-1)*dLh+dAsc;if(hasExp)blockH+=g2+expAsc;
       const by=yt+(H-blockH)/2+skuAsc;
       doc.setFont("helvetica","bold");doc.setFontSize(nfs);doc.setTextColor(17,17,17);doc.text(skuTxt,textL,by,{align:"left"});
       let descBottom=by;
       if(lines.length){doc.setFont("helvetica","bold");doc.setFontSize(dfs);doc.setTextColor(40,40,40);let ly=by+g1+dAsc;lines.forEach(ln=>{doc.text(ln,textL,ly,{align:"left"});descBottom=ly;ly+=dLh;});}
-      const sizeBaseline=descBottom+g2+szAsc;
-      if(sz){doc.setFont("helvetica","normal");doc.setFontSize(6.8);doc.setTextColor(120,116,108);doc.text("SIZE "+sz,textL,sizeBaseline,{align:"left"});}
-      if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(150,60,55);doc.text("EXP "+fmtExp(r.expiry),textR,sizeBaseline,{align:"right"});}
+      if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(150,60,55);doc.text("EXP "+fmtExp(r.expiry),textL,descBottom+g2+expAsc,{align:"left"});}
       // QTY box (bold, like the mock-up)
       if(hasQty){doc.setDrawColor(20,20,20);doc.setLineWidth(1.3);doc.roundedRect(boxX,boxY,boxW,boxH,2.5,2.5,'S');doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(20,20,20);doc.text("QTY",bcx,boxY+0.165*IN,{align:"center"});doc.setLineWidth(0.9);doc.line(boxX+0.03*IN,boxY+0.215*IN,boxX+boxW-0.03*IN,boxY+0.215*IN);doc.setFontSize(22);doc.text(String(per),bcx,boxY+boxH-0.115*IN,{align:"center"});}
     }
@@ -554,16 +552,14 @@ function showTab(name){
     const skuFont='bold '+nfs+'px Helvetica, Arial, sans-serif',skuTxt=ctxTrunc(ctx,String(r.sku),skuFont,textW);
     let dfs=7,lines=[];
     if(r.desc){while(dfs>5){ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';lines=wrapCanvas(ctx,r.desc,textW,99);if(lines.length<=2)break;dfs-=0.25;}ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';lines=wrapCanvas(ctx,r.desc,textW,2);}
-    const sz=parseSize(r.desc),hasSizeRow=!!(sz||hasExp);
-    const skuAsc=nfs*0.72,dLh=dfs*1.18,dAsc=dfs*0.72,szAsc=6.8*0.72,g1=0.05*IN,g2=0.045*IN;
-    let blockH=skuAsc;if(lines.length)blockH+=g1+(lines.length-1)*dLh+dAsc;if(hasSizeRow)blockH+=g2+szAsc;
+    const expAsc=7*0.72;
+    const skuAsc=nfs*0.72,dLh=dfs*1.18,dAsc=dfs*0.72,g1=0.05*IN,g2=0.05*IN;
+    let blockH=skuAsc;if(lines.length)blockH+=g1+(lines.length-1)*dLh+dAsc;if(hasExp)blockH+=g2+expAsc;
     const by=yt+(H-blockH)/2+skuAsc;
     ctx.textAlign='left';ctx.font=skuFont;ctx.fillStyle='#111';ctx.fillText(skuTxt,textL,by);
     let descBottom=by;
     if(lines.length){ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#282828';let ly=by+g1+dAsc;lines.forEach(ln=>{ctx.fillText(ln,textL,ly);descBottom=ly;ly+=dLh;});}
-    const sizeBaseline=descBottom+g2+szAsc;
-    if(sz){ctx.textAlign='left';ctx.font='6.8px Helvetica, Arial, sans-serif';ctx.fillStyle='#787268';ctx.fillText('SIZE '+sz,textL,sizeBaseline);}
-    if(hasExp){ctx.textAlign='right';ctx.font='bold 7px Helvetica, Arial, sans-serif';ctx.fillStyle='#963c37';ctx.fillText('EXP '+fmtExp(r.expiry),textR,sizeBaseline);}
+    if(hasExp){ctx.textAlign='left';ctx.font='bold 7px Helvetica, Arial, sans-serif';ctx.fillStyle='#963c37';ctx.fillText('EXP '+fmtExp(r.expiry),textL,descBottom+g2+expAsc);}
     // QTY box
     if(hasQty){ctx.strokeStyle='#141414';ctx.lineWidth=1.3;ctx.setLineDash([]);rrect(ctx,boxX,boxY,boxW,boxH,2.5);ctx.stroke();ctx.textAlign='center';ctx.font='bold 7px Helvetica, Arial, sans-serif';ctx.fillStyle='#141414';ctx.fillText('QTY',bcx,boxY+0.165*IN);ctx.beginPath();ctx.moveTo(boxX+0.03*IN,boxY+0.215*IN);ctx.lineTo(boxX+boxW-0.03*IN,boxY+0.215*IN);ctx.lineWidth=0.9;ctx.stroke();ctx.font='bold 22px Helvetica, Arial, sans-serif';ctx.fillText(String(per),bcx,boxY+boxH-0.115*IN);}
     // outer label border
