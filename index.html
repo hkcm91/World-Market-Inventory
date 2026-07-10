@@ -187,7 +187,7 @@
     </div>
     <button class="send" id="fAdd">Add strip</button>
   </div>
-  <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each row is one label (one per box). <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Switch to the <b>Photo</b> template to print a product image on each label &mdash; photos load automatically for items World Market carries online; add your own for the rest with <b>Add photo</b>. Tap <b>&#127908; Say date</b> to speak an expiry (e.g. &ldquo;August twelfth twenty twenty six&rdquo;). <b>Check</b> the labels you want, hit Download, then <b>Mark printed</b> &mdash; done ones stay in the list under <b>Printed</b> and drop out of <b>To print</b>. SKU info (name, qty/box, photo) is remembered, so re-adding a SKU auto-fills. <b>Backup</b> saves everything to a file; <b>Restore</b> brings it back. Everything saves on this device.</p>
+  <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each row is one label (one per box). <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Switch to the <b>Photo</b> template to print a product image on each label &mdash; photos load automatically for items World Market carries online; add your own for the rest with <b>Add photo</b>. Tap <b>&#127908; Say date</b> to speak an expiry (e.g. &ldquo;August twelfth twenty twenty six&rdquo;). <b>Check</b> the labels you want, hit Download, then <b>Mark printed</b> &mdash; done ones stay in the list under <b>Printed</b> and drop out of <b>To print</b>. Set <b>Behind</b> to how many boxes of that SKU sit behind the front one and it auto-adds &ldquo;1 BEHIND&rdquo;, &ldquo;2 BEHIND&rdquo;&hellip; stock-depth labels after it. SKU info (name, qty/box, photo) is remembered, so re-adding a SKU auto-fills. <b>Backup</b> saves everything to a file; <b>Restore</b> brings it back. Everything saves on this device.</p>
 </div></div>
 
 <div class="applybar" id="applyBar"><span id="applyMsg"></span><button id="applyAll">Apply to all</button><button id="applyDismiss">Dismiss</button></div>
@@ -357,17 +357,17 @@ function showTab(name){
   function syncCatalog(){rows.forEach(r=>{const c=catalog[r.sku]||{};catalog[r.sku]={desc:r.desc||c.desc||"",perBox:(r.perBox!==undefined&&r.perBox!=="")?intOf(r.perBox):(c.perBox!==undefined?c.perBox:12),img:r.img||c.img||""};});saveCatalog();}
   function catalogGet(sku){return catalog[String(sku)]||null;}
   function intOf(v){return Math.max(0,parseInt(v)||0);}
-  function expandSeed(){const out=[];SEED.forEach(s=>{const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)out.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:"",done:false});});return out;}
+  function expandSeed(){const out=[];SEED.forEach(s=>{const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)out.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:"",done:false,behind:0});});return out;}
   function loadRows(){
     let saved=null; try{saved=JSON.parse(localStorage.getItem(KEY));}catch(e){}
     if(Array.isArray(saved)&&saved.length){
-      rows=saved.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done}));
+      rows=saved.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done,behind:Math.max(0,intOf(r.behind))}));
       const present=new Set(rows.map(r=>r.sku));
-      SEED.forEach(s=>{if(!present.has(String(s.sku))){const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)rows.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:"",done:false});}});
+      SEED.forEach(s=>{if(!present.has(String(s.sku))){const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)rows.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:"",done:false,behind:0});}});
     } else rows=expandSeed();
   }
   // persist a clean projection (drops the transient print-selection flag) and keep the catalog in sync
-  function persist(){localStorage.setItem(KEY,JSON.stringify(rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:r.img,done:!!r.done}))));syncCatalog();}
+  function persist(){localStorage.setItem(KEY,JSON.stringify(rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:r.img,done:!!r.done,behind:Math.max(0,intOf(r.behind))}))));syncCatalog();}
   // last size token from a description, e.g. "HARIBO ... BAG 4OZ" -> "4OZ"
   function parseSize(d){if(!d)return"";const re=/(\d+(?:\.\d+)?)\s*(OZ|Z|LBS?|G|KG|ML|L|CT|PK|PC|PCS|PACK|COUNT)\b/gi;let m,last="";while((m=re.exec(String(d)))!==null)last=(m[1]+m[2]).toUpperCase();return last;}
   // downscale an uploaded image file to a small JPEG data-URI so localStorage stays light
@@ -376,10 +376,12 @@ function showTab(name){
   function ensureImages(list){const srcs=[...new Set(list.map(r=>r.img).filter(Boolean))].filter(s=>!imgCache.has(s));return Promise.all(srcs.map(src=>new Promise(done=>{const im=new Image();if(/^https?:/i.test(src))im.crossOrigin='anonymous';im.onload=()=>{imgCache.set(src,im);done();};im.onerror=()=>{imgCache.set(src,null);done();};im.src=src;})));}
   function applyImages(map){let n=0;rows.forEach(r=>{const v=map[r.sku];if(typeof v==="string"&&v){r.img=v;n++;}});if(n){persist();render();}return n;}
   window.wmLabelsApplyImages=applyImages;   // hook the backend/MCP sync can call
-  function totals(){const strips=rows.length;const skus=new Set(rows.map(r=>r.sku)).size;const dated=rows.filter(r=>r.expiry).length;const done=rows.filter(r=>r.done).length;const sel=rows.filter(r=>r.sel).length;const printCount=sel||printSet().length;return {skus,strips,dated,done,todo:strips-done,sel,printCount,pages:Math.max(1,Math.ceil(Math.max(1,printCount)/PER_PAGE))};}
+  function totals(){const strips=rows.length;const skus=new Set(rows.map(r=>r.sku)).size;const dated=rows.filter(r=>r.expiry).length;const done=rows.filter(r=>r.done).length;const sel=rows.filter(r=>r.sel).length;const printCount=expand(printSet()).length;return {skus,strips,dated,done,todo:strips-done,sel,printCount,pages:Math.max(1,Math.ceil(Math.max(1,printCount)/PER_PAGE))};}
   // which rows will print: the checked ones if any; otherwise the not-yet-printed ones
   // (so you never reprint what's done). Viewing "Printed" prints the done ones.
   function printSet(){const sel=rows.filter(r=>r.sel);if(sel.length)return sel;return rows.filter(r=>filter==="done"?r.done:!r.done);}
+  // expand each label into itself plus its "1 BEHIND".."N BEHIND" stock-depth labels
+  function expand(list){const out=[];list.forEach(r=>{out.push(r);const n=Math.max(0,intOf(r.behind));for(let k=1;k<=n;k++)out.push({isBehind:true,num:k,of:n,sku:r.sku,perBox:r.perBox});});return out;}
   function escq(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
   function render(){
     const t=totals();
@@ -396,7 +398,7 @@ function showTab(name){
         const photoctl=template==="photo"
           ?'<div class="photoctl"><span class="lbl">Photo</span><div class="thumb'+(r.img?'':' empty')+'"'+(r.img?' style="background-image:url('+"'"+escq(r.img)+"'"+')"':'')+'>'+(r.img?'':'no img')+'</div><label class="pill sm">'+(r.img?'Replace':'Add photo')+'<input type="file" accept="image/*" data-i="'+i+'"></label>'+(r.img?'<button class="pill sm" data-i="'+i+'" data-act="imgclear">Clear</button>':'')+'</div>'
           :'';
-        return '<div class="strip'+(r.done?' isdone':'')+'"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div><button class="pill sm dtog'+(r.done?' on':'')+'" data-i="'+i+'" data-act="done">'+(r.done?'✓ Printed':'Mark printed')+'</button></div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="dup">Duplicate</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'"><button class="pill sm" data-i="'+i+'" data-act="voicedate">🎤 Say date</button>'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
+        return '<div class="strip'+(r.done?' isdone':'')+'"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div><button class="pill sm dtog'+(r.done?' on':'')+'" data-i="'+i+'" data-act="done">'+(r.done?'✓ Printed':'Mark printed')+'</button></div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div></div><div class="field"><span class="lbl">Behind</span><div class="stepper"><button data-i="'+i+'" data-bd="-1">&minus;</button><input type="number" min="0" class="bdinput" value="'+Math.max(0,intOf(r.behind))+'" data-i="'+i+'"><button data-i="'+i+'" data-bd="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="dup">Duplicate</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'"><button class="pill sm" data-i="'+i+'" data-act="voicedate">🎤 Say date</button>'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
       }).join("");
     }
     const none=rows.length===0;
@@ -414,10 +416,12 @@ function showTab(name){
     if(btn.dataset.act==="imgclear"){rows[i].img="";persist();render();return;}
     if(btn.dataset.act==="done"){rows[i].done=!rows[i].done;rows[i].sel=false;persist();render();return;}
     if(btn.dataset.act==="voicedate"){voiceDate(i);return;}
+    if(btn.dataset.bd){rows[i].behind=Math.max(0,intOf(rows[i].behind)+(+btn.dataset.bd));persist();render();return;}
     if(btn.dataset.d){rows[i].perBox=Math.max(0,intOf(rows[i].perBox)+(+btn.dataset.d));persist();render();maybeApply(i);}
   });
   document.getElementById("llist").addEventListener("change",e=>{
     if(e.target.matches('input.selbox')){rows[+e.target.dataset.i].sel=e.target.checked;render();return;}
+    if(e.target.matches('input.bdinput')){const i=+e.target.dataset.i;rows[i].behind=Math.max(0,intOf(e.target.value));persist();render();return;}
     if(e.target.matches('input[type=number]')){const i=+e.target.dataset.i;rows[i].perBox=Math.max(0,intOf(e.target.value));persist();render();maybeApply(i);}
     if(e.target.matches('input[type=date]')){const i=+e.target.dataset.i;rows[i].expiry=e.target.value||"";persist();render();}
     if(e.target.matches('input[type=file]')){const i=+e.target.dataset.i,f=e.target.files&&e.target.files[0];if(!f)return;fileToThumb(f).then(uri=>{rows[i].img=uri;persist();render();}).catch(()=>alert("Couldn't read that image."));}
@@ -546,7 +550,7 @@ function showTab(name){
   document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")e.currentTarget.classList.remove("open");});
 
   function fmtExp(iso){const q=String(iso).split('-');if(q.length!==3)return String(iso);return (+q[1])+'/'+(+q[2])+'/'+q[0].slice(2);}
-  function stripList(){return printSet();}
+  function stripList(){return expand(printSet());}
 
   // Placeholder tile for a label with no real photo — a brand-colored square with the
   // brand word, so no photo label ever prints empty (and it's never a wrong product).
@@ -559,7 +563,15 @@ function showTab(name){
     const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:"letter"});const L=LAYOUT;const strips=stripList();if(strips.length===0)return doc;
     function trunc(text,style,size,maxw){doc.setFont("helvetica",style);doc.setFontSize(size);if(doc.getTextWidth(text)<=maxw)return text;let t=text;while(t&&doc.getTextWidth(t+"\u2026")>maxw)t=t.slice(0,-1);return t+"\u2026";}
     function drawPhPDF(x,y,sz,r){const c=phColor(phLabel(r)),lab=phLabel(r);doc.setFillColor(c[0],c[1],c[2]);doc.roundedRect(x,y,sz,sz,3,3,'F');doc.setTextColor(255,255,255);let fs=12;doc.setFont("helvetica","bold");while(fs>6.5){doc.setFontSize(fs);if(doc.getTextWidth(lab)<=sz-0.12*IN)break;fs-=0.5;}doc.setFontSize(fs);doc.text(trunc(lab,"bold",fs,sz-0.10*IN),x+sz/2,y+sz/2+fs*0.35,{align:"center"});}
-    function drawStrip(x,yt,r){return (template==="photo")?drawStripPhoto(x,yt,r):drawStripText(x,yt,r);}
+    function drawBehindPDF(x,yt,r){
+      const W=L.SW,H=L.SH,cx=x+W/2,per=Math.max(0,parseInt(r.perBox)||0),big=String(r.num)+" BEHIND";
+      doc.setDrawColor(20,20,20);doc.setLineWidth(1.1);doc.roundedRect(x+0.06*IN,yt+0.06*IN,W-0.12*IN,H-0.12*IN,5,5,'S');
+      doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(80,76,70);doc.text("SKU "+String(r.sku||""),cx,yt+0.28*IN,{align:"center"});
+      let bf=32;doc.setFont("helvetica","bold");while(bf>14){doc.setFontSize(bf);if(doc.getTextWidth(big)<=W-0.5*IN)break;bf-=0.5;}
+      doc.setFontSize(bf);doc.setTextColor(17,17,17);doc.text(big,cx,yt+0.62*IN,{align:"center"});
+      if(per>0){doc.setFont("helvetica","normal");doc.setFontSize(8);doc.setTextColor(120,116,108);doc.text(per+" / BOX",cx,yt+0.86*IN,{align:"center"});}
+    }
+    function drawStrip(x,yt,r){return r.isBehind?drawBehindPDF(x,yt,r):(template==="photo")?drawStripPhoto(x,yt,r):drawStripText(x,yt,r);}
     function drawStripPhoto(x,yt,r){
       const W=L.SW,H=L.SH;
       const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasExp=!!(r.expiry);
@@ -630,7 +642,17 @@ function showTab(name){
   function ctxTrunc(ctx,text,font,maxw){ctx.font=font;if(ctx.measureText(text).width<=maxw)return text;let t=text;while(t&&ctx.measureText(t+"\u2026").width>maxw)t=t.slice(0,-1);return t+"\u2026";}
   function rrect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
   function wrapCanvas(ctx,text,maxw,maxlines){const words=String(text).split(/\s+/).filter(Boolean);const lines=[];let cur="";for(const w of words){const t=cur?cur+" "+w:w;if(ctx.measureText(t).width<=maxw||!cur)cur=t;else{lines.push(cur);cur=w;}}if(cur)lines.push(cur);if(lines.length>maxlines){const kept=lines.slice(0,maxlines);let last=kept[maxlines-1]+" "+lines.slice(maxlines).join(" ");while(last&&ctx.measureText(last+"…").width>maxw)last=last.slice(0,-1);kept[maxlines-1]=last+"…";return kept;}return lines;}
-  function drawStripCanvas(ctx,x,yt,r){return (template==="photo")?drawStripCanvasPhoto(ctx,x,yt,r):drawStripCanvasText(ctx,x,yt,r);}
+  function drawBehindCanvas(ctx,x,yt,r){
+    const L=LAYOUT,W=L.SW,H=L.SH,cx=x+W/2,per=Math.max(0,parseInt(r.perBox)||0),big=String(r.num)+" BEHIND";
+    ctx.textBaseline='alphabetic';ctx.textAlign='center';ctx.setLineDash([]);
+    ctx.strokeStyle='#141414';ctx.lineWidth=1.1;rrect(ctx,x+0.06*IN,yt+0.06*IN,W-0.12*IN,H-0.12*IN,5);ctx.stroke();
+    ctx.font='bold 11px Helvetica, Arial, sans-serif';ctx.fillStyle='#504c46';ctx.fillText("SKU "+String(r.sku||""),cx,yt+0.28*IN);
+    let bf=32;while(bf>14){ctx.font='bold '+bf+'px Helvetica, Arial, sans-serif';if(ctx.measureText(big).width<=W-0.5*IN)break;bf-=0.5;}
+    ctx.font='bold '+bf+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#111';ctx.fillText(big,cx,yt+0.62*IN);
+    if(per>0){ctx.font='8px Helvetica, Arial, sans-serif';ctx.fillStyle='#787268';ctx.fillText(per+" / BOX",cx,yt+0.86*IN);}
+    ctx.textAlign='left';ctx.strokeStyle='#d9cfbe';ctx.lineWidth=0.75;rrect(ctx,x,yt,W,H,0.09*IN);ctx.stroke();
+  }
+  function drawStripCanvas(ctx,x,yt,r){return r.isBehind?drawBehindCanvas(ctx,x,yt,r):(template==="photo")?drawStripCanvasPhoto(ctx,x,yt,r):drawStripCanvasText(ctx,x,yt,r);}
   function drawStripCanvasPhoto(ctx,x,yt,r){
     const L=LAYOUT,W=L.SW,H=L.SH;
     const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasExp=!!r.expiry;
