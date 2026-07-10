@@ -481,6 +481,25 @@ function showTab(name){
   }
   document.getElementById("tplText").addEventListener("click",()=>{template="text";localStorage.setItem(TPLKEY,template);render();});
   document.getElementById("tplPhoto").addEventListener("click",()=>{template="photo";localStorage.setItem(TPLKEY,template);render();});
+  // The store's SKU list ships with the app (labels.json, same origin) and loads itself on
+  // open, so entries "just appear" on GitHub Pages with no Restore tap. Applied once per
+  // bundle version (BUNDLE_VER stored below), so deletes/edits you make afterward stick.
+  const BUNDLEKEY="wm_labels_bundle_ver";
+  function autoloadBundledLabels(){
+    return fetch("labels.json",{cache:"no-cache"}).then(r=>r.ok?r.json():null).then(b=>{
+      if(!b||!Array.isArray(b.rows)||!b.rows.length)return;
+      if(localStorage.getItem(BUNDLEKEY)===b.v)return;      // this bundle already applied
+      // Non-destructive: keep every entry you already have and only ADD the store SKUs that
+      // aren't in your list yet. Applied once per bundle version, so anything you delete
+      // afterward stays deleted (it won't come back on the next open).
+      const present=new Set(rows.map(r=>r.sku));
+      const mk=r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:"",img:"",done:false,behind:0});
+      let added=0; b.rows.forEach(r=>{if(!present.has(String(r.sku))){rows.push(mk(r));added++;}});
+      if(b.catalog&&typeof b.catalog==="object"){for(const k in b.catalog){if(!catalog[k])catalog[k]=b.catalog[k];}saveCatalog();}
+      localStorage.setItem(BUNDLEKEY,b.v);
+      if(added){persist();render();}
+    }).catch(()=>{});
+  }
   // Product photos ship with the app (photos.json, same origin) and apply themselves on
   // open — any SKU without an image yet gets its World Market photo. User-added photos win.
   function autoloadBundledPhotos(){
@@ -735,7 +754,7 @@ function showTab(name){
     }
   }
 
-  loadRows();syncCatalog();render();autoloadBundledPhotos();
+  loadRows();syncCatalog();render();autoloadBundledLabels().then(autoloadBundledPhotos);
 })();
 </script>
 </body>
