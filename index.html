@@ -482,14 +482,19 @@ function showTab(name){
       const im=r.img?imgCache.get(r.img):null;
       if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{doc.addImage(im,'JPEG',imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);}catch(e){doc.setDrawColor(205,200,190);doc.setLineWidth(0.7);doc.roundedRect(imgX,imgY,imgS,imgS,3,3,'S');}}
       else{doc.setDrawColor(205,200,190);doc.setLineWidth(0.7);doc.roundedRect(imgX,imgY,imgS,imgS,3,3,'S');}
-      // SKU number
+      // fit SKU + description, then vertically center the whole text block in the label
       let nfs=22;doc.setFont("helvetica","bold");while(nfs>11){doc.setFontSize(nfs);if(doc.getTextWidth(String(r.sku))<=textW)break;nfs-=0.5;}
-      doc.setFont("helvetica","bold");doc.setFontSize(nfs);doc.setTextColor(17,17,17);doc.text(trunc(String(r.sku),"bold",nfs,textW),textL,yt+0.285*IN,{align:"left"});
-      // description (up to 2 lines, auto-shrink)
-      let descBottom=yt+0.40*IN;
-      if(r.desc){let dfs=8,lines=[];doc.setFont("helvetica","bold");while(dfs>6){doc.setFontSize(dfs);lines=doc.splitTextToSize(String(r.desc),textW);if(lines.length<=2)break;dfs-=0.25;}if(lines.length>2){lines=lines.slice(0,2);lines[1]=trunc(lines[1],"bold",dfs,textW);}doc.setFontSize(dfs);doc.setTextColor(40,40,40);let dy=yt+0.42*IN,lh=dfs*1.18;lines.forEach(ln=>{doc.text(ln,textL,dy,{align:"left"});descBottom=dy;dy+=lh;});}
-      // SIZE line + optional EXP
-      const sz=parseSize(r.desc);let sizeBaseline=Math.min(descBottom+0.135*IN,yt+H-pad);
+      const skuTxt=trunc(String(r.sku),"bold",nfs,textW);
+      let dfs=8,lines=[];
+      if(r.desc){doc.setFont("helvetica","bold");while(dfs>6){doc.setFontSize(dfs);lines=doc.splitTextToSize(String(r.desc),textW);if(lines.length<=2)break;dfs-=0.25;}if(lines.length>2){lines=lines.slice(0,2);lines[1]=trunc(lines[1],"bold",dfs,textW);}}
+      const sz=parseSize(r.desc),hasSizeRow=!!(sz||hasExp);
+      const skuAsc=nfs*0.72,dLh=dfs*1.18,dAsc=dfs*0.72,szAsc=6.8*0.72,g1=0.05*IN,g2=0.045*IN;
+      let blockH=skuAsc;if(lines.length)blockH+=g1+(lines.length-1)*dLh+dAsc;if(hasSizeRow)blockH+=g2+szAsc;
+      const by=yt+(H-blockH)/2+skuAsc;
+      doc.setFont("helvetica","bold");doc.setFontSize(nfs);doc.setTextColor(17,17,17);doc.text(skuTxt,textL,by,{align:"left"});
+      let descBottom=by;
+      if(lines.length){doc.setFont("helvetica","bold");doc.setFontSize(dfs);doc.setTextColor(40,40,40);let ly=by+g1+dAsc;lines.forEach(ln=>{doc.text(ln,textL,ly,{align:"left"});descBottom=ly;ly+=dLh;});}
+      const sizeBaseline=descBottom+g2+szAsc;
       if(sz){doc.setFont("helvetica","normal");doc.setFontSize(6.8);doc.setTextColor(120,116,108);doc.text("SIZE "+sz,textL,sizeBaseline,{align:"left"});}
       if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(150,60,55);doc.text("EXP "+fmtExp(r.expiry),textR,sizeBaseline,{align:"right"});}
       // QTY box (bold, like the mock-up)
@@ -544,15 +549,19 @@ function showTab(name){
     const im=r.img?imgCache.get(r.img):null;
     if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{ctx.drawImage(im,imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);}catch(e){ctx.strokeStyle='#cdc8be';ctx.lineWidth=0.7;ctx.setLineDash([]);rrect(ctx,imgX,imgY,imgS,imgS,3);ctx.stroke();}}
     else{ctx.strokeStyle='#cdc8be';ctx.lineWidth=0.7;ctx.setLineDash([]);rrect(ctx,imgX,imgY,imgS,imgS,3);ctx.stroke();}
-    // SKU number
+    // fit SKU + description, then vertically center the whole text block in the label
     let nfs=22;while(nfs>11){ctx.font='bold '+nfs+'px Helvetica, Arial, sans-serif';if(ctx.measureText(String(r.sku)).width<=textW)break;nfs-=0.5;}
-    const skuFont='bold '+nfs+'px Helvetica, Arial, sans-serif';
-    ctx.textAlign='left';ctx.font=skuFont;ctx.fillStyle='#111';ctx.fillText(ctxTrunc(ctx,String(r.sku),skuFont,textW),textL,yt+0.285*IN);
-    // description (up to 2 lines, auto-shrink)
-    let descBottom=yt+0.40*IN;
-    if(r.desc){let dfs=8,lines=[];while(dfs>6){ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';lines=wrapCanvas(ctx,r.desc,textW,99);if(lines.length<=2)break;dfs-=0.25;}ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';lines=wrapCanvas(ctx,r.desc,textW,2);ctx.fillStyle='#282828';let dy=yt+0.42*IN,lh=dfs*1.18;lines.forEach(ln=>{ctx.fillText(ln,textL,dy);descBottom=dy;dy+=lh;});}
-    // SIZE line + optional EXP
-    const sz=parseSize(r.desc);let sizeBaseline=Math.min(descBottom+0.135*IN,yt+H-pad);
+    const skuFont='bold '+nfs+'px Helvetica, Arial, sans-serif',skuTxt=ctxTrunc(ctx,String(r.sku),skuFont,textW);
+    let dfs=8,lines=[];
+    if(r.desc){while(dfs>6){ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';lines=wrapCanvas(ctx,r.desc,textW,99);if(lines.length<=2)break;dfs-=0.25;}ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';lines=wrapCanvas(ctx,r.desc,textW,2);}
+    const sz=parseSize(r.desc),hasSizeRow=!!(sz||hasExp);
+    const skuAsc=nfs*0.72,dLh=dfs*1.18,dAsc=dfs*0.72,szAsc=6.8*0.72,g1=0.05*IN,g2=0.045*IN;
+    let blockH=skuAsc;if(lines.length)blockH+=g1+(lines.length-1)*dLh+dAsc;if(hasSizeRow)blockH+=g2+szAsc;
+    const by=yt+(H-blockH)/2+skuAsc;
+    ctx.textAlign='left';ctx.font=skuFont;ctx.fillStyle='#111';ctx.fillText(skuTxt,textL,by);
+    let descBottom=by;
+    if(lines.length){ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#282828';let ly=by+g1+dAsc;lines.forEach(ln=>{ctx.fillText(ln,textL,ly);descBottom=ly;ly+=dLh;});}
+    const sizeBaseline=descBottom+g2+szAsc;
     if(sz){ctx.textAlign='left';ctx.font='6.8px Helvetica, Arial, sans-serif';ctx.fillStyle='#787268';ctx.fillText('SIZE '+sz,textL,sizeBaseline);}
     if(hasExp){ctx.textAlign='right';ctx.font='bold 7px Helvetica, Arial, sans-serif';ctx.fillStyle='#963c37';ctx.fillText('EXP '+fmtExp(r.expiry),textR,sizeBaseline);}
     // QTY box
