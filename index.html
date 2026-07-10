@@ -102,6 +102,19 @@
   .pvtip{font-size:12px;color:#9a2f14;font-weight:600;padding:8px 14px;background:#fbeee9;border-bottom:1px solid var(--line)}
   .note{font-size:12px;color:var(--muted);line-height:1.5;margin:14px 2px 0}
   .note b{color:var(--ink)}
+  /* ---- template switch + photos ---- */
+  .tplrow{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  .tpllabel{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .segbtn{background:var(--card);color:var(--ink);border:0;padding:8px 14px;font-size:13px;font-weight:700;cursor:pointer}
+  .segbtn.active{background:var(--accent);color:#fff}
+  .tplrow .pill{margin-left:auto;cursor:pointer}
+  .photoctl{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);flex-wrap:wrap}
+  .photoctl .lbl{font-size:9px;letter-spacing:.13em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  .thumb{width:40px;height:40px;border-radius:6px;border:1px solid var(--line);background:#efe9dd no-repeat center/cover;flex:0 0 auto}
+  .thumb.empty{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:8px;letter-spacing:.06em;text-align:center;line-height:1.1}
+  .photoctl label.pill{cursor:pointer;margin:0}
+  .photoctl label.pill input{display:none}
 </style>
 </head>
 <body>
@@ -141,6 +154,13 @@
 <!-- ===================== LABELS TAB ===================== -->
 <div class="tabpage" id="page-labels"><div class="wrap">
   <div class="summary" id="lsummary"></div>
+  <div class="tplrow">
+    <span class="tpllabel">Template</span>
+    <div class="seg"><button class="segbtn" id="tplText">Text</button><button class="segbtn" id="tplPhoto">Photo</button></div>
+    <button class="pill" id="syncImgs">Sync photos</button>
+    <button class="pill" id="importImgs">Import photos</button>
+    <input id="imgImportIn" type="file" accept="application/json,.json" style="display:none">
+  </div>
   <div id="llist"></div>
   <button class="add-toggle" id="addToggle">+ Add a strip by hand</button>
   <div class="add-form" id="addForm">
@@ -152,7 +172,7 @@
     </div>
     <button class="send" id="fAdd">Add strip</button>
   </div>
-  <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each row is one label (one per box). <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Everything saves on this device.</p>
+  <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each row is one label (one per box). <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Switch to the <b>Photo</b> template to print a product image on each label (add one per row, or <b>Import photos</b> from a SKU&rarr;image JSON file). Everything saves on this device.</p>
 </div></div>
 
 <div class="applybar" id="applyBar"><span id="applyMsg"></span><button id="applyAll">Apply to all</button><button id="applyDismiss">Dismiss</button></div>
@@ -310,28 +330,45 @@ function showTab(name){
     {sku:"668166",desc:"ROLLING PIN SUPER COLA MIX 7OZ",qty:1,perBox:12},
     {sku:"660439",desc:"KATJES SPARKLY SOUR 4.9OZ",qty:1,perBox:12}
   ];
-  const KEY="wm_labels_v1";
+  const KEY="wm_labels_v1", TPLKEY="wm_label_tpl";
   let rows=[];
+  let template=(localStorage.getItem(TPLKEY)==="photo")?"photo":"text";
+  const imgCache=new Map();   // src -> HTMLImageElement | null(failed)
   function intOf(v){return Math.max(0,parseInt(v)||0);}
-  function expandSeed(){const out=[];SEED.forEach(s=>{const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)out.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:""});});return out;}
+  function expandSeed(){const out=[];SEED.forEach(s=>{const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)out.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:""});});return out;}
   function loadRows(){
     let saved=null; try{saved=JSON.parse(localStorage.getItem(KEY));}catch(e){}
     if(Array.isArray(saved)&&saved.length){
-      rows=saved.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||""}));
+      rows=saved.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||""}));
       const present=new Set(rows.map(r=>r.sku));
-      SEED.forEach(s=>{if(!present.has(String(s.sku))){const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)rows.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:""});}});
+      SEED.forEach(s=>{if(!present.has(String(s.sku))){const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)rows.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:""});}});
     } else rows=expandSeed();
   }
   function persist(){localStorage.setItem(KEY,JSON.stringify(rows));}
+  // last size token from a description, e.g. "HARIBO ... BAG 4OZ" -> "4OZ"
+  function parseSize(d){if(!d)return"";const re=/(\d+(?:\.\d+)?)\s*(OZ|Z|LBS?|G|KG|ML|L|CT|PK|PC|PCS|PACK|COUNT)\b/gi;let m,last="";while((m=re.exec(String(d)))!==null)last=(m[1]+m[2]).toUpperCase();return last;}
+  // downscale an uploaded image file to a small JPEG data-URI so localStorage stays light
+  function fileToThumb(file){return new Promise((res,rej)=>{const fr=new FileReader();fr.onerror=rej;fr.onload=()=>{const im=new Image();im.onerror=rej;im.onload=()=>{const max=240;let w=im.width,h=im.height,s=Math.min(1,max/Math.max(w,h));w=Math.max(1,Math.round(w*s));h=Math.max(1,Math.round(h*s));const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,0,0,w,h);try{res(c.toDataURL('image/jpeg',0.72));}catch(e){rej(e);}};im.src=fr.result;};fr.readAsDataURL(file);});}
+  // preload every referenced image (data-URI or URL) into imgCache before drawing
+  function ensureImages(list){const srcs=[...new Set(list.map(r=>r.img).filter(Boolean))].filter(s=>!imgCache.has(s));return Promise.all(srcs.map(src=>new Promise(done=>{const im=new Image();if(/^https?:/i.test(src))im.crossOrigin='anonymous';im.onload=()=>{imgCache.set(src,im);done();};im.onerror=()=>{imgCache.set(src,null);done();};im.src=src;})));}
+  function applyImages(map){let n=0;rows.forEach(r=>{const v=map[r.sku];if(typeof v==="string"&&v){r.img=v;n++;}});if(n){persist();render();}return n;}
+  window.wmLabelsApplyImages=applyImages;   // hook the backend/MCP sync can call
   function totals(){const strips=rows.length;const skus=new Set(rows.map(r=>r.sku)).size;const dated=rows.filter(r=>r.expiry).length;return {skus,strips,dated,pages:Math.max(1,Math.ceil(strips/PER_PAGE))};}
   function escq(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
   function render(){
     const t=totals();
     document.getElementById("lsummary").innerHTML='<span class="chip"><b>'+t.skus+'</b> SKUs</span><span class="chip"><b>'+t.strips+'</b> labels</span><span class="chip"><b>'+t.pages+'</b> '+(t.pages===1?'page':'pages')+'</span><span class="chip"><b>'+t.dated+'</b> dated</span>';
+    document.getElementById("tplText").classList.toggle("active",template==="text");
+    document.getElementById("tplPhoto").classList.toggle("active",template==="photo");
     const list=document.getElementById("llist");
     if(rows.length===0){list.innerHTML='<div class="card empty">No labels yet.</div>';}
     else{
-      list.innerHTML=rows.map((r,i)=>'<div class="strip"><div class="sku">'+escq(r.sku)+'</div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="dup">Duplicate</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div><div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'">'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>').join("");
+      list.innerHTML=rows.map((r,i)=>{
+        const photoctl=template==="photo"
+          ?'<div class="photoctl"><span class="lbl">Photo</span><div class="thumb'+(r.img?'':' empty')+'"'+(r.img?' style="background-image:url('+"'"+escq(r.img)+"'"+')"':'')+'>'+(r.img?'':'no img')+'</div><label class="pill sm">'+(r.img?'Replace':'Add photo')+'<input type="file" accept="image/*" data-i="'+i+'"></label>'+(r.img?'<button class="pill sm" data-i="'+i+'" data-act="imgclear">Clear</button>':'')+'</div>'
+          :'';
+        return '<div class="strip"><div class="sku">'+escq(r.sku)+'</div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="dup">Duplicate</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'">'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
+      }).join("");
     }
     const none=rows.length===0;
     document.getElementById("downloadBtn").disabled=none;
@@ -344,12 +381,38 @@ function showTab(name){
     if(btn.dataset.act==="dup"){rows.splice(i+1,0,Object.assign({},rows[i]));persist();render();return;}
     if(btn.dataset.act==="rm"){rows.splice(i,1);persist();render();return;}
     if(btn.dataset.act==="expclear"){rows[i].expiry="";persist();render();return;}
+    if(btn.dataset.act==="imgclear"){rows[i].img="";persist();render();return;}
     if(btn.dataset.d){rows[i].perBox=Math.max(0,intOf(rows[i].perBox)+(+btn.dataset.d));persist();render();maybeApply(i);}
   });
   document.getElementById("llist").addEventListener("change",e=>{
     if(e.target.matches('input[type=number]')){const i=+e.target.dataset.i;rows[i].perBox=Math.max(0,intOf(e.target.value));persist();render();maybeApply(i);}
     if(e.target.matches('input[type=date]')){const i=+e.target.dataset.i;rows[i].expiry=e.target.value||"";persist();render();}
+    if(e.target.matches('input[type=file]')){const i=+e.target.dataset.i,f=e.target.files&&e.target.files[0];if(!f)return;fileToThumb(f).then(uri=>{rows[i].img=uri;persist();render();}).catch(()=>alert("Couldn't read that image."));}
   });
+  document.getElementById("tplText").addEventListener("click",()=>{template="text";localStorage.setItem(TPLKEY,template);render();});
+  document.getElementById("tplPhoto").addEventListener("click",()=>{template="photo";localStorage.setItem(TPLKEY,template);render();});
+  const BURL="wm_backend_url";
+  async function syncPhotos(){
+    let base=localStorage.getItem(BURL)||"";
+    base=prompt("Sync server URL (from your backend):",base||"http://localhost:8787");
+    if(base==null)return; base=base.trim().replace(/\/+$/,""); if(!base){localStorage.removeItem(BURL);return;}
+    localStorage.setItem(BURL,base);
+    const btn=document.getElementById("syncImgs");btn.disabled=true;const was=btn.textContent;btn.textContent="Syncing…";
+    try{
+      // push the current label list (unique SKU + description) so the finder knows what to look for
+      const seen=new Set(),labels=[];rows.forEach(r=>{if(!seen.has(r.sku)){seen.add(r.sku);labels.push({sku:r.sku,desc:r.desc||""});}});
+      await fetch(base+"/labels",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(labels)});
+      // pull whatever images have been found so far and apply by SKU
+      const res=await fetch(base+"/images");if(!res.ok)throw new Error("HTTP "+res.status);
+      const map=await res.json();const n=applyImages(map||{});
+      if(template!=="photo"&&n){template="photo";localStorage.setItem(TPLKEY,template);render();}
+      alert(n?("Synced photos for "+n+" label"+(n>1?"s":"")+"."):"Connected. No matching photos on the server yet — run the image finder, then sync again.");
+    }catch(e){alert("Sync failed: "+e.message+"\n\nCheck the server URL and that the backend is running.");}
+    finally{btn.disabled=false;btn.textContent=was;}
+  }
+  document.getElementById("syncImgs").addEventListener("click",syncPhotos);
+  document.getElementById("importImgs").addEventListener("click",()=>document.getElementById("imgImportIn").click());
+  document.getElementById("imgImportIn").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;const fr=new FileReader();fr.onload=()=>{let map;try{map=JSON.parse(fr.result);}catch(err){alert("That file isn't valid JSON.");return;}if(!map||typeof map!=="object"||Array.isArray(map)){alert('Expected a JSON object like {"465674":"https://…/img.jpg"}.');return;}const n=applyImages(map);if(template!=="photo"){template="photo";localStorage.setItem(TPLKEY,template);render();}alert(n?("Added photos to "+n+" label"+(n>1?"s":"")+"."):"No SKUs in the file matched your labels.");};fr.onerror=()=>alert("Couldn't read that file.");fr.readAsText(f);});
   document.getElementById("addToggle").addEventListener("click",()=>document.getElementById("addForm").classList.toggle("open"));
   document.getElementById("fAdd").addEventListener("click",()=>{
     const sku=document.getElementById("fSku").value.trim();if(!sku){document.getElementById("fSku").focus();return;}
@@ -378,9 +441,27 @@ function showTab(name){
     alert("Moved "+added+" item(s) to the Expiry list"+(added<items.length?" ("+(items.length-added)+" already there)":"")+".");
   });
 
-  document.getElementById("downloadBtn").addEventListener("click",()=>{if(totals().strips===0)return;buildDoc().save("sku_labels.pdf");});
-  document.getElementById("emailBtn").addEventListener("click",()=>{const t=totals();if(t.strips===0)return;buildDoc().save("sku_labels.pdf");const su=encodeURIComponent("Top stock SKU labels ("+t.strips+" labels)");const body=encodeURIComponent("Label sheet attached.\n\n"+t.strips+" labels \u00b7 "+t.pages+" page"+(t.pages>1?"s":"")+".");window.location.href="mailto:"+EMAIL_TO+"?subject="+su+"&body="+body;});
-  document.getElementById("previewBtn").addEventListener("click",()=>{document.getElementById("modal").classList.add("open");requestAnimationFrame(renderPreview);});
+  document.getElementById("downloadBtn").addEventListener("click",async ()=>{if(totals().strips===0)return;await ensureImages(stripList());buildDoc().save("sku_labels.pdf");});
+  document.getElementById("emailBtn").addEventListener("click",async ()=>{
+    const t=totals();if(t.strips===0)return;
+    await ensureImages(stripList());
+    const doc=buildDoc(),fname="sku_labels.pdf";
+    const subj="Top stock SKU labels ("+t.strips+" labels)";
+    const summary=t.strips+" labels \u00b7 "+t.pages+" page"+(t.pages>1?"s":"")+".";
+    // Preferred: native share sheet with the PDF actually attached (mobile Safari / Chrome).
+    try{
+      const file=new File([doc.output("blob")],fname,{type:"application/pdf"});
+      if(navigator.canShare&&navigator.canShare({files:[file]})){
+        await navigator.share({files:[file],title:subj,text:"To: "+EMAIL_TO+"\n\nLabel sheet attached.\n\n"+summary});
+        return;
+      }
+    }catch(e){if(e&&e.name==="AbortError")return;/* fall through to download + mailto */}
+    // Fallback: mailto can't carry attachments, so download the PDF and ask the user to attach it.
+    doc.save(fname);
+    const body=encodeURIComponent("The label PDF ("+fname+") was just downloaded to this device \u2014 please attach it to this email before sending.\n\n"+summary);
+    window.location.href="mailto:"+EMAIL_TO+"?subject="+encodeURIComponent(subj)+"&body="+body;
+  });
+  document.getElementById("previewBtn").addEventListener("click",async ()=>{document.getElementById("modal").classList.add("open");await ensureImages(stripList());requestAnimationFrame(renderPreview);});
   document.getElementById("closeModal").addEventListener("click",()=>document.getElementById("modal").classList.remove("open"));
   document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")e.currentTarget.classList.remove("open");});
 
@@ -390,7 +471,40 @@ function showTab(name){
   function buildDoc(){
     const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:"letter"});const L=LAYOUT;const strips=stripList();if(strips.length===0)return doc;
     function trunc(text,style,size,maxw){doc.setFont("helvetica",style);doc.setFontSize(size);if(doc.getTextWidth(text)<=maxw)return text;let t=text;while(t&&doc.getTextWidth(t+"\u2026")>maxw)t=t.slice(0,-1);return t+"\u2026";}
-    function drawStrip(x,yt,r){
+    function drawStrip(x,yt,r){return (template==="photo")?drawStripPhoto(x,yt,r):drawStripText(x,yt,r);}
+    function drawStripPhoto(x,yt,r){
+      const W=L.SW,H=L.SH;
+      const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasExp=!!(r.expiry);
+      const pad=0.14*IN, rpad=0.14*IN, imgS=0.58*IN, imgX=x+pad, imgY=yt+(H-imgS)/2;
+      const boxW=imgS, boxH=imgS, boxX=x+W-rpad-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;
+      const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-pad)-0.09*IN, textW=Math.max(10,textR-textL);
+      // product image (or dashed placeholder box)
+      const im=r.img?imgCache.get(r.img):null;
+      if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{doc.addImage(im,'JPEG',imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);}catch(e){doc.setDrawColor(205,200,190);doc.setLineWidth(0.7);doc.roundedRect(imgX,imgY,imgS,imgS,3,3,'S');}}
+      else{doc.setDrawColor(205,200,190);doc.setLineWidth(0.7);doc.roundedRect(imgX,imgY,imgS,imgS,3,3,'S');}
+      // fit SKU + description, then vertically center the whole text block in the label
+      let nfs=22;doc.setFont("helvetica","bold");while(nfs>11){doc.setFontSize(nfs);if(doc.getTextWidth(String(r.sku))<=textW)break;nfs-=0.5;}
+      const skuTxt=trunc(String(r.sku),"bold",nfs,textW);
+      let dfs=7,lines=[];
+      if(r.desc){doc.setFont("helvetica","bold");while(dfs>5){doc.setFontSize(dfs);lines=doc.splitTextToSize(String(r.desc),textW);if(lines.length<=2)break;dfs-=0.25;}if(lines.length>2){lines=lines.slice(0,2);lines[1]=trunc(lines[1],"bold",dfs,textW);}}
+      const expAsc=7*0.72;
+      const skuAsc=nfs*0.72,dLh=dfs*1.18,dAsc=dfs*0.72,g1=0.05*IN,g2=0.05*IN;
+      let blockH=skuAsc;if(lines.length)blockH+=g1+(lines.length-1)*dLh+dAsc;if(hasExp)blockH+=g2+expAsc;
+      const by=yt+(H-blockH)/2+skuAsc;
+      doc.setFont("helvetica","bold");doc.setFontSize(nfs);doc.setTextColor(17,17,17);doc.text(skuTxt,textL,by,{align:"left"});
+      let descBottom=by;
+      if(lines.length){doc.setFont("helvetica","bold");doc.setFontSize(dfs);doc.setTextColor(40,40,40);let ly=by+g1+dAsc;lines.forEach(ln=>{doc.text(ln,textL,ly,{align:"left"});descBottom=ly;ly+=dLh;});}
+      if(hasExp){doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(150,60,55);doc.text("EXP "+fmtExp(r.expiry),textL,descBottom+g2+expAsc,{align:"left"});}
+      // QTY box (bold, like the mock-up)
+      if(hasQty){doc.setDrawColor(20,20,20);doc.setLineWidth(1.3);doc.roundedRect(boxX,boxY,boxW,boxH,3,3,'S');
+        const dY=boxY+0.27*boxH;
+        doc.setFont("helvetica","bold");doc.setFontSize(5.5);doc.setTextColor(95,95,95);doc.text("QTY",bcx,dY-0.045*IN,{align:"center"});
+        doc.setDrawColor(150,150,150);doc.setLineWidth(0.7);doc.line(boxX+0.05*IN,dY,boxX+boxW-0.05*IN,dY);
+        const nmax=boxW-0.16*IN,hCap=(boxY+boxH-dY-0.13*IN)/0.72;
+        let qf=Math.min(42,hCap);doc.setFont("helvetica","bold");while(qf>16){doc.setFontSize(qf);if(doc.getTextWidth(String(per))<=nmax)break;qf-=0.5;}
+        doc.setTextColor(15,15,15);doc.setFontSize(qf);doc.text(String(per),bcx,(dY+boxY+boxH)/2+qf*0.72/2-1,{align:"center"});}
+    }
+    function drawStripText(x,yt,r){
       const W=L.SW;
       const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasDesc=!!(r.desc),hasExp=!!(r.expiry);
       const padX=0.17*IN, gap=0.10*IN, dvY=yt+0.655*IN, zoneC=(yt+dvY)/2;
@@ -427,7 +541,43 @@ function showTab(name){
 
   function ctxTrunc(ctx,text,font,maxw){ctx.font=font;if(ctx.measureText(text).width<=maxw)return text;let t=text;while(t&&ctx.measureText(t+"\u2026").width>maxw)t=t.slice(0,-1);return t+"\u2026";}
   function rrect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
-  function drawStripCanvas(ctx,x,yt,r){
+  function wrapCanvas(ctx,text,maxw,maxlines){const words=String(text).split(/\s+/).filter(Boolean);const lines=[];let cur="";for(const w of words){const t=cur?cur+" "+w:w;if(ctx.measureText(t).width<=maxw||!cur)cur=t;else{lines.push(cur);cur=w;}}if(cur)lines.push(cur);if(lines.length>maxlines){const kept=lines.slice(0,maxlines);let last=kept[maxlines-1]+" "+lines.slice(maxlines).join(" ");while(last&&ctx.measureText(last+"…").width>maxw)last=last.slice(0,-1);kept[maxlines-1]=last+"…";return kept;}return lines;}
+  function drawStripCanvas(ctx,x,yt,r){return (template==="photo")?drawStripCanvasPhoto(ctx,x,yt,r):drawStripCanvasText(ctx,x,yt,r);}
+  function drawStripCanvasPhoto(ctx,x,yt,r){
+    const L=LAYOUT,W=L.SW,H=L.SH;
+    const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasExp=!!r.expiry;
+    const pad=0.075*IN, imgS=0.58*IN, imgX=x+pad, imgY=yt+(H-imgS)/2;
+    const boxW=0.40*IN, boxH=0.50*IN, boxX=x+W-pad-boxW, boxY=yt+(H-boxH)/2, bcx=boxX+boxW/2;
+    const textL=imgX+imgS+0.10*IN, textR=(hasQty?boxX:x+W-pad)-0.09*IN, textW=Math.max(10,textR-textL);
+    ctx.textBaseline='alphabetic';
+    const im=r.img?imgCache.get(r.img):null;
+    if(im){let iw=im.naturalWidth||im.width||1,ih=im.naturalHeight||im.height||1,s=Math.min(imgS/iw,imgS/ih),dw=iw*s,dh=ih*s;try{ctx.drawImage(im,imgX+(imgS-dw)/2,imgY+(imgS-dh)/2,dw,dh);}catch(e){ctx.strokeStyle='#cdc8be';ctx.lineWidth=0.7;ctx.setLineDash([]);rrect(ctx,imgX,imgY,imgS,imgS,3);ctx.stroke();}}
+    else{ctx.strokeStyle='#cdc8be';ctx.lineWidth=0.7;ctx.setLineDash([]);rrect(ctx,imgX,imgY,imgS,imgS,3);ctx.stroke();}
+    // fit SKU + description, then vertically center the whole text block in the label
+    let nfs=22;while(nfs>11){ctx.font='bold '+nfs+'px Helvetica, Arial, sans-serif';if(ctx.measureText(String(r.sku)).width<=textW)break;nfs-=0.5;}
+    const skuFont='bold '+nfs+'px Helvetica, Arial, sans-serif',skuTxt=ctxTrunc(ctx,String(r.sku),skuFont,textW);
+    let dfs=7,lines=[];
+    if(r.desc){while(dfs>5){ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';lines=wrapCanvas(ctx,r.desc,textW,99);if(lines.length<=2)break;dfs-=0.25;}ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';lines=wrapCanvas(ctx,r.desc,textW,2);}
+    const expAsc=7*0.72;
+    const skuAsc=nfs*0.72,dLh=dfs*1.18,dAsc=dfs*0.72,g1=0.05*IN,g2=0.05*IN;
+    let blockH=skuAsc;if(lines.length)blockH+=g1+(lines.length-1)*dLh+dAsc;if(hasExp)blockH+=g2+expAsc;
+    const by=yt+(H-blockH)/2+skuAsc;
+    ctx.textAlign='left';ctx.font=skuFont;ctx.fillStyle='#111';ctx.fillText(skuTxt,textL,by);
+    let descBottom=by;
+    if(lines.length){ctx.font='bold '+dfs+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#282828';let ly=by+g1+dAsc;lines.forEach(ln=>{ctx.fillText(ln,textL,ly);descBottom=ly;ly+=dLh;});}
+    if(hasExp){ctx.textAlign='left';ctx.font='bold 7px Helvetica, Arial, sans-serif';ctx.fillStyle='#963c37';ctx.fillText('EXP '+fmtExp(r.expiry),textL,descBottom+g2+expAsc);}
+    // QTY box
+    if(hasQty){ctx.strokeStyle='#141414';ctx.lineWidth=1.3;ctx.setLineDash([]);rrect(ctx,boxX,boxY,boxW,boxH,3);ctx.stroke();
+      const dY=boxY+0.27*boxH;
+      ctx.textAlign='center';ctx.font='bold 5.5px Helvetica, Arial, sans-serif';ctx.fillStyle='#5f5f5f';ctx.fillText('QTY',bcx,dY-0.045*IN);
+      ctx.beginPath();ctx.moveTo(boxX+0.05*IN,dY);ctx.lineTo(boxX+boxW-0.05*IN,dY);ctx.strokeStyle='#969696';ctx.lineWidth=0.7;ctx.stroke();
+      const nmax=boxW-0.16*IN,hCap=(boxY+boxH-dY-0.13*IN)/0.72;
+      let qf=Math.min(42,hCap);while(qf>16){ctx.font='bold '+qf+'px Helvetica, Arial, sans-serif';if(ctx.measureText(String(per)).width<=nmax)break;qf-=0.5;}
+      ctx.fillStyle='#0f0f0f';ctx.font='bold '+qf+'px Helvetica, Arial, sans-serif';ctx.fillText(String(per),bcx,(dY+boxY+boxH)/2+qf*0.72/2-1);}
+    // outer label border
+    ctx.textAlign='left';ctx.strokeStyle='#d9cfbe';ctx.lineWidth=0.75;ctx.setLineDash([]);rrect(ctx,x,yt,W,H,0.09*IN);ctx.stroke();
+  }
+  function drawStripCanvasText(ctx,x,yt,r){
     const L=LAYOUT;const W=L.SW;const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasDesc=!!(r.desc),hasExp=!!(r.expiry);
     const padX=0.17*IN, gap=0.10*IN, dvY=yt+0.655*IN, zoneC=(yt+dvY)/2;
     const boxW=0.46*IN, boxH=0.44*IN, boxT=zoneC-boxH/2, boxX=x+W-padX-boxW, bcx=boxX+boxW/2;
