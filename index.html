@@ -157,7 +157,6 @@
   <div class="tplrow">
     <span class="tpllabel">Template</span>
     <div class="seg"><button class="segbtn" id="tplText">Text</button><button class="segbtn" id="tplPhoto">Photo</button></div>
-    <button class="pill" id="syncImgs">Sync photos</button>
     <button class="pill" id="importImgs">Import photos</button>
     <input id="imgImportIn" type="file" style="display:none">
   </div>
@@ -172,7 +171,7 @@
     </div>
     <button class="send" id="fAdd">Add strip</button>
   </div>
-  <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each row is one label (one per box). <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Switch to the <b>Photo</b> template to print a product image on each label (add one per row, or <b>Import photos</b> from a SKU&rarr;image JSON file). Everything saves on this device.</p>
+  <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each row is one label (one per box). <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Switch to the <b>Photo</b> template to print a product image on each label &mdash; photos load automatically for items World Market carries online; add your own for the rest with <b>Add photo</b>. Everything saves on this device.</p>
 </div></div>
 
 <div class="applybar" id="applyBar"><span id="applyMsg"></span><button id="applyAll">Apply to all</button><button id="applyDismiss">Dismiss</button></div>
@@ -391,27 +390,16 @@ function showTab(name){
   });
   document.getElementById("tplText").addEventListener("click",()=>{template="text";localStorage.setItem(TPLKEY,template);render();});
   document.getElementById("tplPhoto").addEventListener("click",()=>{template="photo";localStorage.setItem(TPLKEY,template);render();});
-  const BURL="wm_backend_url";
-  async function syncPhotos(){
-    let base=localStorage.getItem(BURL)||"";
-    const guess=(location.protocol==="http:"||location.protocol==="https:")?location.origin:"http://localhost:8787";
-    base=prompt("Sync server URL:",base||guess);
-    if(base==null)return; base=base.trim().replace(/\/+$/,""); if(!base){localStorage.removeItem(BURL);return;}
-    localStorage.setItem(BURL,base);
-    const btn=document.getElementById("syncImgs");btn.disabled=true;const was=btn.textContent;btn.textContent="Syncing…";
-    try{
-      // push the current label list (unique SKU + description) so the finder knows what to look for
-      const seen=new Set(),labels=[];rows.forEach(r=>{if(!seen.has(r.sku)){seen.add(r.sku);labels.push({sku:r.sku,desc:r.desc||""});}});
-      await fetch(base+"/labels",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(labels)});
-      // pull whatever images have been found so far and apply by SKU
-      const res=await fetch(base+"/images");if(!res.ok)throw new Error("HTTP "+res.status);
-      const map=await res.json();const n=applyImages(map||{});
-      if(template!=="photo"&&n){template="photo";localStorage.setItem(TPLKEY,template);render();}
-      alert(n?("Synced photos for "+n+" label"+(n>1?"s":"")+"."):"Connected. No matching photos on the server yet — run the image finder, then sync again.");
-    }catch(e){alert("Sync failed: "+e.message+"\n\nCheck the server URL and that the backend is running.");}
-    finally{btn.disabled=false;btn.textContent=was;}
+  // Product photos ship with the app (photos.json, same origin) and apply themselves on
+  // open — any SKU without an image yet gets its World Market photo. User-added photos win.
+  function autoloadBundledPhotos(){
+    if(!rows.some(r=>!r.img))return;                       // everything already has a photo
+    fetch("photos.json",{cache:"force-cache"}).then(r=>r.ok?r.json():null).then(map=>{
+      if(!map||typeof map!=="object")return;
+      let n=0;rows.forEach(r=>{if(!r.img&&typeof map[r.sku]==="string"&&map[r.sku]){r.img=map[r.sku];n++;}});
+      if(n){persist();render();}
+    }).catch(()=>{});
   }
-  document.getElementById("syncImgs").addEventListener("click",syncPhotos);
   document.getElementById("importImgs").addEventListener("click",()=>document.getElementById("imgImportIn").click());
   document.getElementById("imgImportIn").addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];e.target.value="";if(!f)return;const fr=new FileReader();fr.onload=()=>{let map;try{map=JSON.parse(fr.result);}catch(err){alert("That file isn't valid JSON.");return;}if(!map||typeof map!=="object"||Array.isArray(map)){alert('Expected a JSON object like {"465674":"https://…/img.jpg"}.');return;}const n=applyImages(map);if(template!=="photo"){template="photo";localStorage.setItem(TPLKEY,template);render();}alert(n?("Added photos to "+n+" label"+(n>1?"s":"")+"."):"No SKUs in the file matched your labels.");};fr.onerror=()=>alert("Couldn't read that file.");fr.readAsText(f);});
   document.getElementById("addToggle").addEventListener("click",()=>document.getElementById("addForm").classList.toggle("open"));
@@ -624,7 +612,7 @@ function showTab(name){
     }
   }
 
-  loadRows();render();
+  loadRows();render();autoloadBundledPhotos();
 })();
 </script>
 </body>
