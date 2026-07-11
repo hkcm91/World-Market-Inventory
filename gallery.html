@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>World Market Product Library</title>
+<style>
+  :root{
+    --bg:#f6f4ef; --card:#fff; --ink:#2b2620; --muted:#8a7d6a; --line:#e5ddd0;
+    --accent:#a8402f; --chip:#efe9dd; --chipOn:#2b2620; --chipOnInk:#fff;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{ --bg:#181511; --card:#221e19; --ink:#efe8dd; --muted:#a99e8b; --line:#332c23;
+           --accent:#e08a5a; --chip:#2c2620; --chipOn:#efe8dd; --chipOnInk:#181511; }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  header{position:sticky;top:0;z-index:5;background:var(--bg);border-bottom:1px solid var(--line);padding:12px 14px 10px}
+  h1{margin:0 0 2px;font-size:18px;letter-spacing:.2px}
+  .sub{color:var(--muted);font-size:12.5px;margin-bottom:9px}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  #q{flex:1 1 200px;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font-size:15px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .chip{border:1px solid var(--line);background:var(--chip);color:var(--ink);padding:6px 11px;border-radius:999px;font-size:12.5px;cursor:pointer;white-space:nowrap}
+  .chip.on{background:var(--chipOn);color:var(--chipOnInk);border-color:var(--chipOn)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
+  .imgwrap{aspect-ratio:1/1;background:#fff;display:flex;align-items:center;justify-content:center;padding:8px}
+  .imgwrap img{max-width:100%;max-height:100%;object-fit:contain}
+  .meta{padding:8px 9px 10px;border-top:1px solid var(--line)}
+  .sku{font-weight:700;font-size:13px;letter-spacing:.3px;display:flex;justify-content:space-between;align-items:center;gap:6px}
+  .sku button{border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:11px;padding:2px 4px}
+  .nm{color:var(--muted);font-size:11.5px;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;min-height:28px}
+  .cat{display:inline-block;margin-top:5px;font-size:10px;color:var(--accent);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+  .empty{padding:40px 16px;text-align:center;color:var(--muted)}
+  footer{padding:22px 16px 40px;text-align:center;color:var(--muted);font-size:12px}
+  /* lightbox */
+  #lb{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;justify-content:center;z-index:20;padding:20px}
+  #lb.open{display:flex}
+  #lb img{max-width:92vw;max-height:78vh;background:#fff;border-radius:10px;padding:10px}
+  #lb .cap{position:absolute;bottom:18px;left:0;right:0;text-align:center;color:#fff;font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <h1>World Market Product Library</h1>
+  <div class="sub" id="sub">Loading…</div>
+  <div class="controls">
+    <input id="q" type="search" placeholder="Search SKU or product name…" autocomplete="off">
+  </div>
+  <div class="chips" id="chips"></div>
+</header>
+
+<div class="grid" id="grid"></div>
+<footer id="foot"></footer>
+
+<div id="lb"><img id="lbimg" alt=""><div class="cap" id="lbcap"></div></div>
+
+<script>
+const grid=document.getElementById('grid'), sub=document.getElementById('sub'),
+      chipsEl=document.getElementById('chips'), q=document.getElementById('q'),
+      foot=document.getElementById('foot'), lb=document.getElementById('lb'),
+      lbimg=document.getElementById('lbimg'), lbcap=document.getElementById('lbcap');
+let LIB=[], cat='All', src='All';
+
+function catList(){
+  const counts={};
+  LIB.forEach(e=>{ if(e.cat) counts[e.cat]=(counts[e.cat]||0)+1; });
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([c,n])=>({c,n}));
+}
+function renderChips(){
+  const cats=catList();
+  const parts=[['All','All',LIB.length]];
+  parts.push(['src','Candy dept',LIB.filter(e=>e.source==='candy-dept').length,'src:candy-dept']);
+  parts.push(['src','My store',LIB.filter(e=>e.source==='store').length,'src:store']);
+  let html='<span class="chip'+(cat==='All'&&src==='All'?' on':'')+'" data-all="1">All '+LIB.length+'</span>';
+  html+='<span class="chip'+(src==='candy-dept'?' on':'')+'" data-src="candy-dept">Candy dept '+LIB.filter(e=>e.source==='candy-dept').length+'</span>';
+  html+='<span class="chip'+(src==='store'?' on':'')+'" data-src="store">My store '+LIB.filter(e=>e.source==='store').length+'</span>';
+  catList().forEach(({c,n})=>{ html+='<span class="chip'+(cat===c?' on':'')+'" data-cat="'+esc(c)+'">'+esc(c)+' '+n+'</span>'; });
+  chipsEl.innerHTML=html;
+}
+function esc(s){return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+function apply(){
+  const term=q.value.trim().toLowerCase();
+  let list=LIB;
+  if(src!=='All') list=list.filter(e=>e.source===src);
+  if(cat!=='All') list=list.filter(e=>e.cat===cat);
+  if(term) list=list.filter(e=>e.sku.includes(term)||(e.name||'').toLowerCase().includes(term));
+  sub.textContent=list.length+' of '+LIB.length+' products'+(cat!=='All'?' · '+cat:'')+(src!=='All'?' · '+(src==='candy-dept'?'Candy dept':'My store'):'');
+  if(!list.length){ grid.innerHTML='<div class="empty">No products match.</div>'; foot.textContent=''; return; }
+  grid.innerHTML=list.map(e=>(
+    '<div class="card">'+
+      '<div class="imgwrap"><img loading="lazy" src="'+e.img+'" alt="'+esc(e.name)+'" data-sku="'+e.sku+'"></div>'+
+      '<div class="meta"><div class="sku">'+e.sku+'<button data-copy="'+e.sku+'">copy</button></div>'+
+      '<div class="nm">'+esc(e.name||'—')+'</div>'+
+      (e.cat?'<span class="cat">'+esc(e.cat)+'</span>':'')+'</div>'+
+    '</div>'
+  )).join('');
+  foot.textContent='World Market product library · '+LIB.length+' images · tap any image to enlarge';
+}
+
+chipsEl.addEventListener('click',e=>{
+  const c=e.target.closest('.chip'); if(!c)return;
+  if(c.dataset.all){cat='All';src='All';}
+  else if(c.dataset.src){ src=(src===c.dataset.src?'All':c.dataset.src); }
+  else if(c.dataset.cat){ cat=(cat===c.dataset.cat?'All':c.dataset.cat); }
+  renderChips(); apply();
+});
+q.addEventListener('input',apply);
+grid.addEventListener('click',e=>{
+  const cp=e.target.closest('button[data-copy]');
+  if(cp){ navigator.clipboard&&navigator.clipboard.writeText(cp.dataset.copy); cp.textContent='✓'; setTimeout(()=>cp.textContent='copy',900); return; }
+  const img=e.target.closest('img[data-sku]');
+  if(img){ lbimg.src=img.src; const e2=LIB.find(x=>x.sku===img.dataset.sku); lbcap.textContent=(e2?e2.sku+' — '+(e2.name||''):''); lb.classList.add('open'); }
+});
+lb.addEventListener('click',()=>lb.classList.remove('open'));
+
+fetch('library.json',{cache:'no-cache'}).then(r=>r.json()).then(data=>{
+  LIB=data.sort((a,b)=>(a.source===b.source?0:a.source==='candy-dept'?-1:1));
+  renderChips(); apply();
+}).catch(err=>{ sub.textContent='Could not load library.json'; grid.innerHTML='<div class="empty">'+err+'</div>'; });
+</script>
+</body>
+</html>
