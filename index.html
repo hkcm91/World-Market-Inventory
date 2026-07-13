@@ -729,36 +729,49 @@ function showTab(name){
   // never delivers a "final" result for short utterances like "twelve", which is why
   // the mic felt like a coin flip. Shows "Speak now" only once the mic is actually
   // open, and buzzes the phone as the cue.
-  function listenOnce(btn,idleLabel,cb){
+  // opts.quick(text): return true the moment the partial transcript already contains
+  //   what we need — we commit instantly instead of waiting seconds for the recognizer
+  //   to decide you've finished talking.
+  // opts.silence: ms of no new speech (after hearing something) before committing.
+  let activeRec=null;   // one session at a time — starting over a live one breaks the mic until reload
+  function listenOnce(btn,idleLabel,cb,opts){
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){alert("Voice input isn't supported on this browser.");return;}
+    opts=opts||{};
+    if(activeRec){try{activeRec.abort();}catch(e){}activeRec=null;}
     const rc=new SR();rc.lang='en-US';rc.interimResults=true;rc.maxAlternatives=1;
-    let finalTxt="",interimTxt="",finished=false;
+    activeRec=rc;
+    let finalTxt="",interimTxt="",finished=false,silenceTimer=null;
     const setBtn=t=>{if(btn)btn.textContent=t;};
     setBtn("🎤 …");
-    const finish=()=>{if(finished)return;finished=true;setBtn(idleLabel);cb((finalTxt||interimTxt).trim());};
+    const finish=()=>{if(finished)return;finished=true;clearTimeout(hardStop);clearTimeout(silenceTimer);if(activeRec===rc)activeRec=null;setBtn(idleLabel);cb((finalTxt||interimTxt).trim());};
+    const commitNow=()=>{try{rc.abort();}catch(e){}finish();};
     rc.onaudiostart=()=>{setBtn("🎤 Speak now");if(navigator.vibrate)try{navigator.vibrate(40);}catch(e){}};
     rc.onresult=ev=>{
       let f="",it="";
       for(let k=0;k<ev.results.length;k++){const r=ev.results[k];if(r.isFinal)f+=r[0].transcript+" ";else it+=r[0].transcript+" ";}
       finalTxt=f.trim();interimTxt=it.trim();
       const heard=(finalTxt||interimTxt);if(heard)setBtn("🎤 "+heard.slice(0,16));
-      if(finalTxt){try{rc.stop();}catch(e){}}
+      if(finalTxt||(heard&&opts.quick&&opts.quick(heard))){commitNow();return;}
+      // heard something but can't parse it yet — commit after a short pause in speech
+      clearTimeout(silenceTimer);
+      if(heard)silenceTimer=setTimeout(commitNow,opts.silence||900);
     };
-    rc.onerror=ev=>{if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){finished=true;setBtn(idleLabel);alert("Microphone is blocked — allow mic access for this site and try again.");}};
+    rc.onerror=ev=>{if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){finished=true;if(activeRec===rc)activeRec=null;setBtn(idleLabel);alert("Microphone is blocked — allow mic access for this site and try again.");}};
     rc.onend=finish;
-    setTimeout(()=>{try{rc.stop();}catch(e){}},7000);   // never hang in "Listening" forever
+    const hardStop=setTimeout(commitNow,8000);   // never hang in "Listening" forever
     try{rc.start();}catch(e){finish();}
   }
   function voiceDate(i){
     const btn=document.querySelector('button[data-act="voicedate"][data-i="'+i+'"]');
+    // dates are longer utterances with natural pauses — give a wider silence window
     listenOnce(btn,"🎤 Say date",t=>{
       if(!rows[i])return;
       if(!t){toast("Didn't catch that — tap and say the date");return;}
       const dr=(typeof extractDate==='function')?extractDate(speechToDigits(t)):{date:null};
       if(dr&&dr.date){rows[i].expiry=dr.date.iso;persist();render();toast("Expiry set: "+dr.date.disp);}
       else alert('Heard: "'+t+'"\nCouldn\'t find a date. Try like "August 12 2026".');
-    });
+    },{silence:1400});
   }
   // Speak a quantity, e.g. "twelve" or "twenty four" -> fills Qty / box (reuses the number-word normalizer)
   function voiceQty(i){
@@ -771,7 +784,7 @@ function showTab(name){
         const inp=document.querySelector('.stepper input[type=number]:not(.bdinput)[data-i="'+i+'"]');if(inp)inp.value=v;
         persist();renderCounts();maybeApply(i);toast("Qty/box set to "+v);}
       else alert('Heard: "'+t+'"\nCouldn\'t find a number. Try like "twelve".');
-    });
+    },{quick:t=>/\d/.test(speechToDigits(t)),silence:700});   // "8" applies the moment it's heard
   }
   document.getElementById("tplText").addEventListener("click",()=>{template="text";localStorage.setItem(TPLKEY,template);render();});
   document.getElementById("tplPhoto").addEventListener("click",()=>{template="photo";localStorage.setItem(TPLKEY,template);render();});
