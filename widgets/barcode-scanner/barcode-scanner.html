@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:var(--sn-bg,#0A0A0E);--surface:var(--sn-surface,#16161B);--raised:var(--sn-surface-raised,#1E1E24);
+    --text:var(--sn-text,#EDEBE6);--muted:var(--sn-text-muted,#8A8796);--border:var(--sn-border,rgba(255,255,255,.1));
+    --accent:var(--sn-accent,#4E7B8E);--accent-light:var(--sn-accent-light,#6A95A6);
+    --ok:var(--sn-success,#5AA878);--warn:var(--sn-warning,#D4A04C);--err:var(--sn-error,#C85858);
+    --radius:12px;--font:var(--sn-font-family,system-ui,-apple-system,sans-serif);
+  }
+  body{font-family:var(--font);background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;font-size:13px;overflow:hidden}
+  .wrap{flex:1;display:flex;flex-direction:column;gap:10px;padding:14px;overflow:hidden}
+  header{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  h1{font-size:15px;font-weight:700;display:flex;align-items:center;gap:7px}
+  .badge{font-size:9.5px;font-weight:700;letter-spacing:.5px;padding:2px 7px;border-radius:999px;white-space:nowrap}
+  .badge.preview{background:rgba(212,160,76,.16);color:var(--warn);border:1px solid var(--warn)}
+  .badge.live{background:rgba(90,168,120,.16);color:var(--ok);border:1px solid var(--ok)}
+  .dbname{font-size:11px;color:var(--muted);margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45%}
+  .dbname b{color:var(--accent-light)}
+
+  /* camera */
+  .cam{position:relative;width:100%;background:#000;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;aspect-ratio:16/10;min-height:120px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  .cam video{width:100%;height:100%;object-fit:cover;display:none}
+  .cam.on video{display:block}
+  .cam .placeholder{color:var(--muted);font-size:12px;text-align:center;padding:16px;line-height:1.6}
+  .cam.on .placeholder{display:none}
+  .reticle{position:absolute;inset:0;pointer-events:none;display:none}
+  .cam.on .reticle{display:block}
+  .reticle::before{content:"";position:absolute;left:12%;right:12%;top:50%;height:2px;background:linear-gradient(90deg,transparent,var(--err),transparent);box-shadow:0 0 8px var(--err);animation:sweep 2s ease-in-out infinite}
+  .reticle .frame{position:absolute;left:10%;right:10%;top:22%;bottom:22%;border:2px solid rgba(255,255,255,.55);border-radius:10px}
+  @keyframes sweep{0%,100%{top:26%}50%{top:74%}}
+  .camhud{position:absolute;left:8px;bottom:8px;font-size:10px;color:#fff;background:rgba(0,0,0,.55);padding:2px 8px;border-radius:999px}
+
+  .controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button{font-family:inherit;font-size:12px;font-weight:600;border-radius:9px;border:1px solid var(--border);background:var(--raised);color:var(--text);padding:8px 12px;cursor:pointer;transition:transform .05s,background .15s}
+  button:hover{background:var(--surface)}
+  button:active{transform:translateY(1px)}
+  button.primary{background:var(--accent);border-color:var(--accent)}
+  button.primary:hover{background:var(--accent-light)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  .toggle{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);margin-left:auto;cursor:pointer;user-select:none}
+  .toggle input{accent-color:var(--accent)}
+
+  /* form */
+  .form{display:grid;grid-template-columns:1fr 1fr;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px}
+  .field{display:flex;flex-direction:column;gap:3px}
+  .field.wide{grid-column:1 / -1}
+  .field label{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .field input{font-family:inherit;font-size:13px;border-radius:8px;border:1px solid var(--border);background:var(--raised);color:var(--text);padding:8px 10px;width:100%}
+  .field input:focus{outline:none;border-color:var(--accent)}
+  .field input.code{font-family:ui-monospace,Menlo,monospace;font-weight:600;letter-spacing:.5px}
+  .saverow{grid-column:1 / -1;display:flex;gap:8px;align-items:center}
+  .saverow button{flex:1}
+
+  /* recent */
+  .recent{flex:1;display:flex;flex-direction:column;gap:6px;min-height:60px;overflow:hidden}
+  .recent .rhead{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+  .recent .rhead b{color:var(--text)}
+  .rlist{flex:1;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)}
+  .scan{display:flex;align-items:center;gap:10px;padding:8px 11px;border-bottom:1px solid var(--border)}
+  .scan:last-child{border-bottom:none}
+  .scan .code{font-family:ui-monospace,Menlo,monospace;font-weight:700;font-size:12.5px}
+  .scan .meta{font-size:10.5px;color:var(--muted);display:flex;gap:6px;flex-wrap:wrap;margin-top:2px}
+  .scan .tag{background:var(--raised);border:1px solid var(--border);border-radius:999px;padding:1px 7px}
+  .scan .qty{margin-left:auto;font-weight:700;color:var(--accent-light);font-size:13px;white-space:nowrap}
+  .empty{color:var(--muted);text-align:center;padding:22px 12px;font-size:12px;line-height:1.6}
+
+  .toast{position:fixed;left:50%;bottom:14px;transform:translateX(-50%) translateY(8px);background:var(--raised);border:1px solid var(--border);border-radius:10px;padding:9px 14px;font-size:12px;font-weight:600;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:20;box-shadow:0 6px 24px rgba(0,0,0,.4)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast.ok{border-color:var(--ok);color:var(--ok)}
+  .toast.err{border-color:var(--err);color:var(--err)}
+  .toast.warn{border-color:var(--warn);color:var(--warn)}
+</style></head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>&#128499;&#65039; Barcode Scanner <span id="badge" class="badge preview">PREVIEW</span></h1>
+      <span class="dbname" id="dbname">&#8230;</span>
+    </header>
+
+    <div class="cam" id="cam">
+      <video id="video" playsinline muted></video>
+      <div class="reticle"><div class="frame"></div></div>
+      <div class="camhud" id="camhud"></div>
+      <div class="placeholder" id="camPlaceholder">Camera is off.<br>Tap <b>Start camera</b> to scan, or type a code below.</div>
+    </div>
+
+    <div class="controls">
+      <button class="primary" id="camBtn">Start camera</button>
+      <button id="flipBtn" style="display:none">Flip</button>
+      <label class="toggle"><input type="checkbox" id="autoSave"> Auto-save each scan</label>
+    </div>
+
+    <div class="form">
+      <div class="field wide">
+        <label for="fCode">Barcode</label>
+        <input id="fCode" class="code" placeholder="Scan or type a barcode&#8230;" autocomplete="off" enterkeyhint="done">
+      </div>
+      <div class="field">
+        <label for="fProduct">Product</label>
+        <input id="fProduct" placeholder="Optional name" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="fQty">Quantity</label>
+        <input id="fQty" type="number" inputmode="numeric" value="1" min="0" step="1">
+      </div>
+      <div class="field">
+        <label for="fLoc">Location</label>
+        <input id="fLoc" placeholder="Aisle / bin" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="fNote">Note</label>
+        <input id="fNote" placeholder="Optional" autocomplete="off">
+      </div>
+      <div class="saverow">
+        <button class="primary" id="saveBtn">Save scan</button>
+        <button id="clearBtn">Clear</button>
+      </div>
+    </div>
+
+    <div class="recent">
+      <div class="rhead">Recent scans <b id="count">0</b> <span id="refresh" style="margin-left:auto;cursor:pointer;color:var(--accent-light)">&#8635; refresh</span></div>
+      <div class="rlist" id="rlist"><div class="empty">No scans yet. Scan a barcode to record it here.</div></div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+  (function(){
+    "use strict";
+    // ---- Manifest (inlined so the publish validator can read it statically) ----
+    StickerNest.register({
+      id: 'barcode-scanner',
+      name: 'Barcode Scanner',
+      version: '1.0.0',
+      description: 'Scan barcodes with the camera (or type them) and record each scan as a row in a StickerNest DataSource.',
+      permissions: ['datasource', 'datasource-write', 'camera'],
+      events: { emits: [{ name: 'barcode.scanned' }, { name: 'datasource.changed' }], subscribes: [] }
+    });
+
+    var $ = function(id){ return document.getElementById(id); };
+
+    // Fallback column-name -> column-id map for the DataSource this widget was
+    // built against. When mounted live we re-read the schema and override this,
+    // so renaming/rebuilding the table keeps working.
+    var DEFAULT_DS_ID = 'dd8dc90f-e5b2-4f6e-9142-0061692b2133';
+    var DEFAULT_COLMAP = {
+      'Barcode':   '1b35f1e9-04b8-4767-8228-52e7fee4f663',
+      'Format':    '9a5cc7c2-26bb-482a-874f-7d1207d6449f',
+      'Product':   'c7edc4ec-85a5-4f33-893d-c598e6666704',
+      'Quantity':  '4ea1795c-9e4d-4cdf-8a6d-91db88e700a9',
+      'Location':  '5a0b5fbd-335b-40f6-8feb-da339bb893c8',
+      'Note':      'ac45da9c-56cc-4d5e-994d-494ec6fa9ec4',
+      'Scanned At':'fc73962d-350d-4d2a-b4b7-6297933a7aab'
+    };
+
+    var DS_ID = DEFAULT_DS_ID;
+    var colMap = Object.assign({}, DEFAULT_COLMAP); // name -> id (for writes)
+    var idToName = {};                              // id -> name (for reads)
+
+    // Live only when the host injects the real DataSource table API.
+    var LIVE = !!(window.StickerNest && StickerNest.datasource
+      && typeof StickerNest.datasource.read === 'function'
+      && StickerNest.datasource.table
+      && typeof StickerNest.datasource.table.addRow === 'function');
+
+    var localRows = []; // preview-mode fallback store
+
+    // ---------- toast ----------
+    var tT;
+    function toast(msg, kind){
+      var t = $('toast'); t.textContent = msg;
+      t.className = 'toast show' + (kind ? ' ' + kind : '');
+      clearTimeout(tT); tT = setTimeout(function(){ t.className = 'toast'; }, 2400);
+    }
+
+    // ---------- feedback ----------
+    function beep(){
+      try {
+        var Ctx = window.AudioContext || window.webkitAudioContext; if (!Ctx) return;
+        var ac = beep._ac || (beep._ac = new Ctx());
+        var o = ac.createOscillator(), g = ac.createGain();
+        o.type = 'square'; o.frequency.value = 1180;
+        g.gain.value = 0.05; o.connect(g); g.connect(ac.destination);
+        o.start(); o.stop(ac.currentTime + 0.07);
+      } catch(e){}
+    }
+    function buzz(){ try { if (navigator.vibrate) navigator.vibrate(35); } catch(e){} }
+
+    // ---------- schema binding ----------
+    function applySchema(cols){
+      if (!cols || !cols.length) return;
+      var m = {}, r = {};
+      cols.forEach(function(c){ if (c && c.name && c.id){ m[c.name] = c.id; r[c.id] = c.name; } });
+      if (Object.keys(m).length){ colMap = m; idToName = r; }
+    }
+    function cells(obj){ // {ColumnName: value} -> {columnId: value}, skipping unknown/empty
+      var out = {};
+      Object.keys(obj).forEach(function(name){
+        var id = colMap[name];
+        var v = obj[name];
+        if (id && v !== undefined && v !== null && v !== '') out[id] = v;
+      });
+      return out;
+    }
+    function rowToObj(row){ // DataSource row -> {ColumnName: value}
+      var c = (row && row.cells) ? row.cells : (row || {});
+      var o = {};
+      Object.keys(c).forEach(function(k){ o[idToName[k] || k] = c[k]; });
+      return o;
+    }
+
+    // ---------- write a scan ----------
+    var busy = false;
+    async function recordScan(rec){
+      var payload = {
+        'Barcode':    rec.code,
+        'Format':     rec.format || '',
+        'Product':    rec.product || '',
+        'Quantity':   (rec.qty === '' || rec.qty == null) ? '' : Number(rec.qty),
+        'Location':   rec.location || '',
+        'Note':       rec.note || '',
+        'Scanned At': new Date().toISOString()
+      };
+      StickerNest.emit('barcode.scanned', { barcode: rec.code, format: rec.format, product: rec.product, quantity: payload.Quantity });
+
+      if (!LIVE){
+        localRows.unshift(payload);
+        renderRows(localRows);
+        toast('Preview: kept locally (writes to DB on canvas)', 'warn');
+        return;
+      }
+      if (busy) return;
+      busy = true; $('saveBtn').disabled = true;
+      try {
+        await StickerNest.datasource.table.addRow(DS_ID, cells(payload));
+        try { StickerNest.emit('datasource.changed', { op: 'addRow', dataSourceId: DS_ID }); } catch(e){}
+        toast('Recorded ' + rec.code + ' ✓', 'ok');
+        await loadRows();
+      } catch (e){
+        toast('Save failed: ' + (e && e.message ? e.message : e), 'err');
+      } finally {
+        busy = false; $('saveBtn').disabled = false;
+      }
+    }
+
+    // ---------- read recent ----------
+    async function loadRows(){
+      if (!LIVE){ renderRows(localRows); return; }
+      try {
+        var res = await StickerNest.datasource.table.getRows(DS_ID);
+        var rows = (res && Array.isArray(res.rows)) ? res.rows : (Array.isArray(res) ? res : []);
+        renderRows(rows.map(rowToObj), (res && res.total != null) ? res.total : rows.length);
+      } catch(e){ /* keep whatever is shown */ }
+    }
+
+    function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]; }); }
+    function timeAgo(iso){
+      var t = Date.parse(iso); if (isNaN(t)) return '';
+      var s = Math.max(0, (Date.now() - t) / 1000);
+      if (s < 60) return 'just now';
+      if (s < 3600) return Math.floor(s/60) + 'm ago';
+      if (s < 86400) return Math.floor(s/3600) + 'h ago';
+      return new Date(t).toLocaleDateString();
+    }
+    function renderRows(objs, total){
+      var list = $('rlist');
+      $('count').textContent = (total != null ? total : objs.length);
+      // newest first: rows from DB may be oldest-first, sort by Scanned At desc
+      var sorted = objs.slice().sort(function(a,b){ return (Date.parse(b['Scanned At'])||0) - (Date.parse(a['Scanned At'])||0); });
+      if (!sorted.length){ list.innerHTML = '<div class="empty">No scans yet. Scan a barcode to record it here.</div>'; return; }
+      list.innerHTML = sorted.slice(0, 100).map(function(o){
+        var meta = [];
+        if (o['Product']) meta.push('<span class="tag">'+esc(o['Product'])+'</span>');
+        if (o['Location']) meta.push('<span class="tag">📍 '+esc(o['Location'])+'</span>');
+        if (o['Format']) meta.push('<span class="tag">'+esc(o['Format'])+'</span>');
+        if (o['Note']) meta.push('<span class="tag">'+esc(o['Note'])+'</span>');
+        var when = timeAgo(o['Scanned At']);
+        if (when) meta.push('<span>'+esc(when)+'</span>');
+        var qty = (o['Quantity'] === '' || o['Quantity'] == null) ? '' : '×'+esc(o['Quantity']);
+        return '<div class="scan"><div><div class="code">'+esc(o['Barcode'])+'</div><div class="meta">'+meta.join('')+'</div></div>'
+             + (qty ? '<div class="qty">'+qty+'</div>' : '') + '</div>';
+      }).join('');
+    }
+
+    // ---------- staged scan / form ----------
+    function stage(code, format){
+      $('fCode').value = code;
+      $('fCode').dataset.format = format || '';
+      $('camhud').textContent = code;
+    }
+    function clearForm(){
+      $('fCode').value=''; $('fCode').dataset.format=''; $('fProduct').value='';
+      $('fQty').value='1'; $('fLoc').value=''; $('fNote').value='';
+      $('fProduct').focus();
+    }
+    function saveFromForm(){
+      var code = $('fCode').value.trim();
+      if (!code){ toast('Enter or scan a barcode first', 'warn'); $('fCode').focus(); return; }
+      recordScan({
+        code: code,
+        format: $('fCode').dataset.format || 'manual',
+        product: $('fProduct').value.trim(),
+        qty: $('fQty').value.trim(),
+        location: $('fLoc').value.trim(),
+        note: $('fNote').value.trim()
+      });
+      // keep Product/Location/Note context for repeated inventory entry; reset code+qty
+      $('fCode').value=''; $('fCode').dataset.format=''; $('fQty').value='1'; $('camhud').textContent='';
+    }
+
+    $('saveBtn').addEventListener('click', saveFromForm);
+    $('clearBtn').addEventListener('click', clearForm);
+    $('refresh').addEventListener('click', loadRows);
+    $('fCode').addEventListener('keydown', function(e){ if (e.key === 'Enter'){ e.preventDefault(); saveFromForm(); } });
+
+    // ---------- camera + detection ----------
+    var video = $('video'), camEl = $('cam');
+    var stream = null, scanning = false, detector = null, zxingReader = null;
+    var facing = 'environment';
+    var lastCode = '', lastAt = 0;
+
+    function onDetected(code, format){
+      code = String(code || '').trim(); if (!code) return;
+      var now = Date.now();
+      if (code === lastCode && (now - lastAt) < 2500) return; // debounce duplicates
+      lastCode = code; lastAt = now;
+      beep(); buzz();
+      if ($('autoSave').checked){
+        recordScan({ code: code, format: format || 'camera',
+          product: $('fProduct').value.trim(), qty: $('fQty').value.trim() || 1,
+          location: $('fLoc').value.trim(), note: $('fNote').value.trim() });
+        $('camhud').textContent = 'saved: ' + code;
+      } else {
+        stage(code, format);
+        toast('Scanned ' + code + ' — review & Save', 'ok');
+      }
+    }
+
+    async function ensureDetector(){
+      if ('BarcodeDetector' in window){
+        try {
+          var fmts = await window.BarcodeDetector.getSupportedFormats();
+          detector = new window.BarcodeDetector({ formats: fmts });
+          return 'native';
+        } catch(e){}
+      }
+      // Fallback: ZXing (loaded lazily). If it fails, manual entry still works.
+      if (!zxingReader){
+        try {
+          await loadScript('https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js');
+          if (window.ZXing){ zxingReader = new window.ZXing.BrowserMultiFormatReader(); return 'zxing'; }
+        } catch(e){}
+      } else return 'zxing';
+      return null;
+    }
+    function loadScript(src){
+      return new Promise(function(res, rej){
+        var s = document.createElement('script'); s.src = src;
+        s.onload = res; s.onerror = function(){ rej(new Error('load ' + src)); };
+        document.head.appendChild(s);
+      });
+    }
+
+    async function nativeLoop(){
+      if (!scanning || !detector) return;
+      try {
+        var codes = await detector.detect(video);
+        if (codes && codes.length) onDetected(codes[0].rawValue, codes[0].format);
+      } catch(e){}
+      if (scanning) setTimeout(nativeLoop, 220);
+    }
+
+    async function startCamera(){
+      if (scanning) return;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        toast('Camera not available here — use manual entry', 'warn'); return;
+      }
+      $('camBtn').disabled = true;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing }, audio: false });
+        video.srcObject = stream; await video.play();
+        camEl.classList.add('on'); scanning = true;
+        $('camBtn').textContent = 'Stop camera'; $('flipBtn').style.display = '';
+        var mode = await ensureDetector();
+        if (mode === 'native'){ nativeLoop(); }
+        else if (mode === 'zxing'){
+          zxingReader.decodeFromVideoDevice(undefined, video, function(result){
+            if (result) onDetected(result.getText(), (result.getBarcodeFormat && String(result.getBarcodeFormat())) || 'zxing');
+          });
+        } else {
+          toast('No barcode decoder in this browser — type codes manually', 'warn');
+        }
+        $('camhud').textContent = mode ? 'scanning…' : 'preview only';
+      } catch(e){
+        toast('Camera blocked: ' + (e && e.name ? e.name : 'error'), 'err');
+        camEl.classList.remove('on');
+      } finally {
+        $('camBtn').disabled = false;
+      }
+    }
+    function stopCamera(){
+      scanning = false;
+      try { if (zxingReader && zxingReader.reset) zxingReader.reset(); } catch(e){}
+      if (stream){ stream.getTracks().forEach(function(t){ t.stop(); }); stream = null; }
+      video.srcObject = null; camEl.classList.remove('on');
+      $('camBtn').textContent = 'Start camera'; $('flipBtn').style.display = 'none';
+      $('camhud').textContent = '';
+    }
+    $('camBtn').addEventListener('click', function(){ scanning ? stopCamera() : startCamera(); });
+    $('flipBtn').addEventListener('click', async function(){
+      facing = (facing === 'environment') ? 'user' : 'environment';
+      stopCamera(); await startCamera();
+    });
+    window.addEventListener('pagehide', stopCamera);
+
+    // ---------- theme / resize ----------
+    try { StickerNest.onThemeChange(function(tokens){
+      if (!tokens) return; var root = document.documentElement;
+      Object.keys(tokens).forEach(function(k){ root.style.setProperty('--sn-' + k, tokens[k]); });
+    }); } catch(e){}
+
+    // ---------- boot ----------
+    StickerNest.getConfig().then(function(cfg){
+      cfg = cfg || {};
+      DS_ID = cfg.dataSourceId || cfg.databaseId || DEFAULT_DS_ID;
+      $('badge').textContent = LIVE ? 'LIVE' : 'PREVIEW';
+      $('badge').className = 'badge ' + (LIVE ? 'live' : 'preview');
+      $('dbname').innerHTML = 'DB: <b>' + esc(cfg.dataSourceName || 'Barcode Scans') + '</b>';
+      if (cfg.autoSave) $('autoSave').checked = true;
+
+      StickerNest.ready();
+
+      if (LIVE){
+        StickerNest.datasource.read(DS_ID).then(function(rec){
+          var cols = rec && (rec.schema && rec.schema.columns || rec.columns);
+          applySchema(cols);
+        }).catch(function(){}).then(loadRows);
+      } else {
+        renderRows(localRows);
+      }
+    }).catch(function(){ StickerNest.ready(); renderRows(localRows); });
+  })();
+  </script>
+</body></html>
