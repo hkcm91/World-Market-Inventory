@@ -121,6 +121,9 @@
   #qwQty{flex:1;min-width:0;border:2px solid var(--accent);border-radius:12px;background:var(--card2);color:var(--ink);font-size:32px;font-weight:800;text-align:center;padding:10px;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
   #qwQty::-webkit-outer-spin-button,#qwQty::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .qwrow .pill{height:56px;white-space:nowrap;cursor:pointer}
+  .qwcopies .qwstep{width:64px;height:52px;border:1px solid var(--accent);border-radius:12px;background:var(--card2);color:var(--ink);font-size:26px;font-weight:800;cursor:pointer}
+  #qwCopies{flex:1;min-width:0;border:1px solid var(--line);border-radius:12px;background:var(--card2);color:var(--ink);font-size:24px;font-weight:800;text-align:center;padding:8px;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+  #qwCopies::-webkit-outer-spin-button,#qwCopies::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .qwacts{display:flex;gap:10px;padding:14px 18px 18px}
   .qwacts button{flex:1;min-height:56px;border-radius:12px;font-size:17px;font-weight:800;border:1px solid var(--line);background:var(--card2);color:var(--ink);cursor:pointer}
   .qwacts .qwsave{flex:1.6;background:var(--accent2);border-color:var(--accent2);color:#fff}
@@ -191,7 +194,7 @@
 </style>
 </head>
 <body>
-<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.6</span></h1></header>
+<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.7</span></h1></header>
 <div class="tabs">
   <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
   <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
@@ -335,6 +338,12 @@
     <div class="qwrow">
       <input id="qwQty" type="number" inputmode="numeric" min="0">
       <button class="pill" id="qwMic">&#127908; Say qty</button>
+    </div>
+    <div class="qwlbl" style="margin-top:14px">Boxes &middot; labels to print</div>
+    <div class="qwrow qwcopies">
+      <button class="qwstep" id="qwCopMinus">&minus;</button>
+      <input id="qwCopies" type="number" inputmode="numeric" min="1">
+      <button class="qwstep" id="qwCopPlus">+</button>
     </div>
   </div>
   <div class="qwacts">
@@ -928,7 +937,7 @@ function showTab(name){
      (or the mic) replaces it; Enter / Save & next commits and advances immediately;
      Skip advances without touching anything. */
   let qwIdx=-1;
-  const qwModal=document.getElementById("qwModal"),qwQty=document.getElementById("qwQty");
+  const qwModal=document.getElementById("qwModal"),qwQty=document.getElementById("qwQty"),qwCopies=document.getElementById("qwCopies");
   function qwOpen(i){qwIdx=i;qwModal.classList.add("open");qwShow();}
   function qwShow(){
     const r=rows[qwIdx];
@@ -939,13 +948,14 @@ function showTab(name){
     const th=document.getElementById("qwThumb");
     th.style.backgroundImage=r.img?("url('"+r.img.replace(/'/g,"%27")+"')"):"none";
     qwQty.value=intOf(r.perBox);
+    qwCopies.value=copiesOf(r);
     setTimeout(()=>{qwQty.focus();try{qwQty.select();}catch(e){}},60);
   }
   function qwAdvance(save){
     const r=rows[qwIdx];
     if(r&&save){
-      const v=Math.max(0,intOf(qwQty.value));
-      if(v!==intOf(r.perBox)){r.perBox=v;persist();}
+      const v=Math.max(0,intOf(qwQty.value)),c=Math.max(1,intOf(qwCopies.value)||1);
+      if(v!==intOf(r.perBox)||c!==copiesOf(r)){r.perBox=v;r.copies=c;persist();}
     }
     qwIdx++;
     if(qwIdx>=rows.length){qwFinish("End of list — quick pass done");return;}
@@ -955,7 +965,21 @@ function showTab(name){
   document.getElementById("qwSave").addEventListener("click",()=>qwAdvance(true));
   document.getElementById("qwSkip").addEventListener("click",()=>qwAdvance(false));
   document.getElementById("qwClose").addEventListener("click",()=>qwFinish(""));
-  qwQty.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();qwAdvance(true);}else if(e.key==="Escape"){qwFinish("");}});
+  // modal-wide keys: Enter saves & advances no matter what's focused (a stepper tap
+  // moves focus off the input — Enter must still mean "confirm", not "tap + again")
+  document.addEventListener("keydown",e=>{
+    if(!qwModal.classList.contains("open"))return;
+    if(e.key==="Escape"){qwFinish("");return;}
+    if(e.key==="Enter"){
+      if(e.target&&(e.target.id==="qwSkip"||e.target.id==="qwClose"))return;   // let those buttons be buttons
+      e.preventDefault();qwAdvance(true);
+    }
+  });
+  // select the whole number AFTER the tap settles, or the caret lands between digits
+  qwQty.addEventListener("focus",()=>setTimeout(()=>{try{qwQty.select();}catch(e){}},0));
+  qwCopies.addEventListener("focus",()=>setTimeout(()=>{try{qwCopies.select();}catch(e){}},0));
+  document.getElementById("qwCopMinus").addEventListener("click",()=>{qwCopies.value=Math.max(1,(intOf(qwCopies.value)||1)-1);});
+  document.getElementById("qwCopPlus").addEventListener("click",()=>{qwCopies.value=Math.max(1,(intOf(qwCopies.value)||1)+1);});
   document.getElementById("qwMic").addEventListener("click",()=>{
     listenOnce(document.getElementById("qwMic"),"🎤 Say qty",t=>{
       if(!t){toast("Didn't catch that — tap and say the number");return;}
