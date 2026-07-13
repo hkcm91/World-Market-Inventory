@@ -127,6 +127,28 @@
   .dtog.on{background:var(--accent2);color:#fff;border-color:var(--accent2)}
   .strip.isdone{opacity:.62}
   .strip.isdone .sku{text-decoration:line-through;text-decoration-thickness:2px}
+  /* ---- archive ---- */
+  .arcbox{width:22px;height:22px;accent-color:var(--accent2);cursor:pointer}
+  .arcmeta{font-size:11px;color:var(--muted);margin-top:6px}
+  .strip.arc .desc{min-height:0}
+  /* ---- scan tab ---- */
+  .scanwrap .cam{position:relative;width:100%;background:#000;border:1px solid var(--line);border-radius:12px;overflow:hidden;aspect-ratio:4/3;min-height:150px;display:flex;align-items:center;justify-content:center;margin-top:10px}
+  .scanwrap .cam video{width:100%;height:100%;object-fit:cover;display:none}
+  .scanwrap .cam.on video{display:block}
+  .scanwrap .cam .ph{color:#c9c2b6;font-size:13px;text-align:center;padding:18px;line-height:1.6}
+  .scanwrap .cam.on .ph{display:none}
+  .scanwrap .reticle{position:absolute;left:10%;right:10%;top:28%;bottom:28%;border:2px solid rgba(255,255,255,.7);border-radius:10px;display:none;pointer-events:none}
+  .scanwrap .cam.on .reticle{display:block}
+  .scanwrap .hud{position:absolute;left:8px;bottom:8px;font-size:11px;color:#fff;background:rgba(0,0,0,.55);padding:2px 8px;border-radius:999px}
+  .scanrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
+  .scanrow input{flex:1;min-width:120px;padding:11px;border:1px solid var(--line);border-radius:8px;font-size:16px;color:var(--ink);background:#fff}
+  .scanrow .pill{cursor:pointer}
+  .scanitem{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px}
+  .scanitem .code{font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+  .scanitem input.nm{flex:1;min-width:90px;padding:8px;border:1px solid var(--line);border-radius:7px;font-size:14px;background:#fff;color:var(--ink)}
+  .scanitem button{border:1px solid #e6c3ba;background:#fff;color:#9a2f14;border-radius:7px;height:32px;padding:0 11px;font-weight:800;cursor:pointer}
+  .scanempty{color:var(--muted);text-align:center;padding:16px;font-size:13px}
+  #scanImport:disabled,#scanClear:disabled{opacity:.45}
 </style>
 </head>
 <body>
@@ -134,6 +156,7 @@
 <div class="tabs">
   <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
   <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
+  <button class="tab" id="tab-scan" onclick="showTab('scan')">Scan</button>
 </div>
 
 <!-- ===================== EXPIRY TAB ===================== -->
@@ -190,13 +213,51 @@
   <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each row is one label (one per box). <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Switch to the <b>Photo</b> template to print a product image on each label &mdash; photos load automatically for items World Market carries online; add your own for the rest with <b>Add photo</b>. Tap <b>&#127908; Say date</b> to speak an expiry (e.g. &ldquo;August twelfth twenty twenty six&rdquo;). <b>Check</b> the labels you want, hit Download, then <b>Mark printed</b> &mdash; done ones stay in the list under <b>Printed</b> and drop out of <b>To print</b>. Set <b>Behind</b> to how many boxes of that SKU sit behind the front one and it auto-adds &ldquo;1 BEHIND&rdquo;, &ldquo;2 BEHIND&rdquo;&hellip; stock-depth labels after it. SKU info (name, qty/box, photo) is remembered, so re-adding a SKU auto-fills. <b>Backup</b> saves everything to a file; <b>Restore</b> brings it back. Everything saves on this device.</p>
 </div></div>
 
+<!-- ===================== SCAN TAB ===================== -->
+<div class="tabpage" id="page-scan"><div class="wrap scanwrap">
+  <div class="card">
+    <h2>Scan to import</h2>
+    <p class="note" style="margin-top:0">Scan barcodes off <b>pick tickets</b> or <b>product boxes</b> to capture the SKU (and name), then <b>Import</b> them straight into your Labels list. No camera? Type or paste a code below.</p>
+    <div class="cam" id="scanCam">
+      <video id="scanVideo" playsinline muted></video>
+      <div class="reticle"></div>
+      <div class="hud" id="scanHud"></div>
+      <div class="ph" id="scanPh">Camera is off.<br>Tap <b>Start camera</b> to scan.</div>
+    </div>
+    <div class="scanrow">
+      <button class="pill" id="scanCamBtn" style="cursor:pointer">&#128247; Start camera</button>
+      <button class="pill" id="scanFlip" style="cursor:pointer;display:none">Flip</button>
+    </div>
+    <div class="scanrow">
+      <input id="scanCode" inputmode="numeric" placeholder="SKU / barcode" autocomplete="off">
+      <input id="scanName" placeholder="Product name (optional)" autocomplete="off">
+      <button class="pill" id="scanAdd" style="cursor:pointer">Add</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="summary"><span class="chip">Scanned <b id="scanCount">0</b></span></div>
+    <div id="scanList"><div class="scanempty">Nothing scanned yet.</div></div>
+    <div class="scanrow">
+      <button class="pill" id="scanImport" style="background:var(--accent2);color:#fff;border-color:var(--accent2);cursor:pointer">&#11015; Import to Labels</button>
+      <button class="pill" id="scanClear" style="cursor:pointer">Clear list</button>
+    </div>
+  </div>
+</div></div>
+
 <div class="applybar" id="applyBar"><span id="applyMsg"></span><button id="applyAll">Apply to all</button><button id="applyDismiss">Dismiss</button></div>
 <div class="lbar" id="lbar" style="display:flex">
-  <button id="previewBtn">Preview</button>
-  <button class="primary" id="downloadBtn">Download</button>
-  <button id="emailBtn">Email</button>
-  <button id="markBtn">&#10003; Mark printed</button>
-  <button class="gold" id="moveBtn">Move dated &rarr; Expiry</button>
+  <span id="lbarMain" style="display:contents">
+    <button id="previewBtn">Preview</button>
+    <button class="primary" id="downloadBtn">Download</button>
+    <button id="emailBtn">Email</button>
+    <button id="markBtn">&#10003; Mark printed</button>
+    <button id="archiveBtn">&#128230; Archive</button>
+    <button class="gold" id="moveBtn">Move dated &rarr; Expiry</button>
+  </span>
+  <span id="lbarArc" style="display:none">
+    <button class="primary" id="unarchiveBtn">&#8617; Restore</button>
+    <button id="arcRemoveBtn">&#128465; Remove</button>
+  </span>
 </div>
 
 <div class="modal" id="modal"><div class="modal-inner">
@@ -301,12 +362,13 @@ load();render();
 
 /* ================= TABS ================= */
 function showTab(name){
-  document.getElementById('tab-expiry').classList.toggle('active',name==='expiry');
-  document.getElementById('tab-labels').classList.toggle('active',name==='labels');
-  document.getElementById('page-expiry').classList.toggle('show',name==='expiry');
-  document.getElementById('page-labels').classList.toggle('show',name==='labels');
+  ['labels','expiry','scan'].forEach(function(n){
+    document.getElementById('tab-'+n).classList.toggle('active',name===n);
+    document.getElementById('page-'+n).classList.toggle('show',name===n);
+  });
   document.getElementById('lbar').style.display = name==='labels' ? 'flex' : 'none';
   if(name!=='labels') document.getElementById('applyBar').classList.remove('show');
+  if(window.wmScanOnTab) window.wmScanOnTab(name==='scan');   // start/stop the camera with the tab
 }
 
 /* ================= LABELS BUILDER ================= */
@@ -346,14 +408,19 @@ function showTab(name){
     {sku:"668166",desc:"ROLLING PIN SUPER COLA MIX 7OZ",qty:1,perBox:12},
     {sku:"660439",desc:"KATJES SPARKLY SOUR 4.9OZ",qty:1,perBox:12}
   ];
-  const KEY="wm_labels_v1", TPLKEY="wm_label_tpl", CATKEY="wm_catalog_v1";
+  const KEY="wm_labels_v1", TPLKEY="wm_label_tpl", CATKEY="wm_catalog_v1", ARCKEY="wm_labels_archive_v1";
   let rows=[];
   let template=(localStorage.getItem(TPLKEY)==="photo")?"photo":"text";
-  let filter="all";                                  // all | todo | done (which entries to show)
+  let filter="all";                                  // all | todo | done | archived (which entries to show)
   const imgCache=new Map();   // src -> HTMLImageElement | null(failed)
   // SKU catalog: remembers desc / qty-per-box / image per SKU so you never re-enter a SKU's info
   let catalog={}; try{catalog=JSON.parse(localStorage.getItem(CATKEY))||{};}catch(e){catalog={};}
   function saveCatalog(){try{localStorage.setItem(CATKEY,JSON.stringify(catalog));}catch(e){}}
+  // Archive: entries stashed out of the active list to be restored when relevant again.
+  let archive=[]; try{archive=JSON.parse(localStorage.getItem(ARCKEY))||[];}catch(e){archive=[];}
+  if(!Array.isArray(archive))archive=[];
+  function cleanArc(r){return {sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",behind:Math.max(0,intOf(r.behind)),archivedAt:r.archivedAt||Date.now()};}
+  function saveArchive(){try{localStorage.setItem(ARCKEY,JSON.stringify(archive.map(cleanArc)));}catch(e){}}
   function syncCatalog(){rows.forEach(r=>{const c=catalog[r.sku]||{};catalog[r.sku]={desc:r.desc||c.desc||"",perBox:(r.perBox!==undefined&&r.perBox!=="")?intOf(r.perBox):(c.perBox!==undefined?c.perBox:12),img:r.img||c.img||""};});saveCatalog();}
   function catalogGet(sku){return catalog[String(sku)]||null;}
   function intOf(v){return Math.max(0,parseInt(v)||0);}
@@ -388,8 +455,13 @@ function showTab(name){
     document.getElementById("lsummary").innerHTML='<span class="chip"><b>'+t.skus+'</b> SKUs</span><span class="chip"><b>'+t.strips+'</b> labels</span><span class="chip"><b>'+t.printCount+'</b> to print</span><span class="chip"><b>'+t.done+'</b> done</span>';
     document.getElementById("tplText").classList.toggle("active",template==="text");
     document.getElementById("tplPhoto").classList.toggle("active",template==="photo");
-    document.getElementById("lfilter").innerHTML=[["all","All "+t.strips],["todo","To print "+t.todo],["done","Printed "+t.done]].map(f=>'<button class="fchip'+(filter===f[0]?' active':'')+'" data-f="'+f[0]+'">'+f[1]+'</button>').join("");
+    document.getElementById("lfilter").innerHTML=[["all","All "+t.strips],["todo","To print "+t.todo],["done","Printed "+t.done],["archived","Archived "+archive.length]].map(f=>'<button class="fchip'+(filter===f[0]?' active':'')+'" data-f="'+f[0]+'">'+f[1]+'</button>').join("");
     const list=document.getElementById("llist");
+    // Archived view: swap the action bar to Restore/Remove and render the archive instead of the active rows.
+    const arcView=(filter==="archived");
+    document.getElementById("lbarMain").style.display=arcView?"none":"contents";
+    document.getElementById("lbarArc").style.display=arcView?"contents":"none";
+    if(arcView){renderArchiveInto(list);return;}
     const shown=rows.map((r,i)=>({r,i})).filter(o=>filter==="all"||(filter==="done"?o.r.done:!o.r.done));
     if(rows.length===0){list.innerHTML='<div class="card empty">No labels yet.</div>';}
     else if(shown.length===0){list.innerHTML='<div class="card empty">Nothing '+(filter==="done"?"printed":"left to print")+'.</div>';}
@@ -410,6 +482,8 @@ function showTab(name){
   }
   document.getElementById("llist").addEventListener("click",e=>{
     const btn=e.target.closest("button");if(!btn)return;const i=+btn.dataset.i;
+    if(btn.dataset.act==="arcrestore"){restoreArchived([+btn.dataset.a]);return;}
+    if(btn.dataset.act==="arcremove"){const a=+btn.dataset.a;if(confirm("Permanently remove this archived entry? This can't be undone.")){archive.splice(a,1);saveArchive();render();}return;}
     if(btn.dataset.act==="dup"){rows.splice(i+1,0,Object.assign({},rows[i],{sel:false,done:false}));persist();render();return;}
     if(btn.dataset.act==="rm"){rows.splice(i,1);persist();render();return;}
     if(btn.dataset.act==="expclear"){rows[i].expiry="";persist();render();return;}
@@ -421,6 +495,7 @@ function showTab(name){
     if(btn.dataset.d){rows[i].perBox=Math.max(0,intOf(rows[i].perBox)+(+btn.dataset.d));persist();render();maybeApply(i);}
   });
   document.getElementById("llist").addEventListener("change",e=>{
+    if(e.target.matches('input.arcbox')){archive[+e.target.dataset.a].sel=e.target.checked;return;}
     if(e.target.matches('input.selbox')){rows[+e.target.dataset.i].sel=e.target.checked;render();return;}
     if(e.target.matches('input.bdinput')){const i=+e.target.dataset.i;rows[i].behind=Math.max(0,intOf(e.target.value));persist();render();return;}
     if(e.target.matches('input[type=number]')){const i=+e.target.dataset.i;rows[i].perBox=Math.max(0,intOf(e.target.value));persist();render();maybeApply(i);}
@@ -433,6 +508,63 @@ function showTab(name){
     if(!confirm("Mark "+set.length+" label"+(set.length>1?"s":"")+" as printed? They stay in the list (shown under “Printed”), just out of your “To print” view."))return;
     set.forEach(r=>{r.done=true;r.sel=false;});persist();render();
   });
+
+  /* ---- Archive: stash selected entries out of the active list, restore them later ---- */
+  function renderArchiveInto(list){
+    if(!archive.length){list.innerHTML='<div class="card empty">Nothing archived yet. Check one or more entries in a list above and tap <b>&#128230; Archive</b> to stash them here for later.</div>';return;}
+    list.innerHTML=archive.map((r,a)=>{
+      const when=r.archivedAt?new Date(r.archivedAt).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'';
+      return '<div class="strip arc"><div class="striphead"><label class="selwrap"><input type="checkbox" class="arcbox" data-a="'+a+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div>'
+        +'<button class="pill sm" data-a="'+a+'" data-act="arcrestore" style="color:var(--accent)">&#8617; Restore</button>'
+        +'<button class="pill sm" data-a="'+a+'" data-act="arcremove">Remove</button></div>'
+        +'<div class="desc">'+escq(r.desc||"")+'</div>'
+        +'<div class="arcmeta">Qty/box '+intOf(r.perBox)+(r.expiry?(' &middot; exp '+escq(r.expiry)):'')+(when?(' &middot; archived '+when):'')+'</div></div>';
+    }).join("");
+  }
+  function archiveSelected(){
+    const sel=rows.map((r,i)=>({r,i})).filter(o=>o.r.sel);
+    if(!sel.length){alert("Check the entries you want to archive first (the box on the left of each label).");return;}
+    if(!confirm("Archive "+sel.length+" selected entr"+(sel.length>1?"ies":"y")+"? They move out of your active list into Archived, where you can restore them anytime."))return;
+    const idx=new Set(sel.map(o=>o.i));
+    sel.forEach(o=>{archive.unshift(cleanArc(Object.assign({},o.r,{archivedAt:Date.now()})));});
+    rows=rows.filter((r,i)=>!idx.has(i));
+    persist();saveArchive();render();
+  }
+  function restoreArchived(indices){
+    const set=new Set(indices);
+    const back=archive.filter((r,a)=>set.has(a));
+    if(!back.length)return;
+    back.forEach(r=>{rows.push({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:false,behind:Math.max(0,intOf(r.behind))});});
+    archive=archive.filter((r,a)=>!set.has(a));
+    persist();saveArchive();
+    if(!archive.length)filter="all";                 // nothing left to show in the archived view
+    render();
+  }
+  document.getElementById("archiveBtn").addEventListener("click",archiveSelected);
+  document.getElementById("unarchiveBtn").addEventListener("click",()=>{
+    const idx=archive.map((r,a)=>a).filter(a=>archive[a].sel);
+    if(!idx.length){alert("Check the archived entries you want to restore first.");return;}
+    restoreArchived(idx);
+  });
+  document.getElementById("arcRemoveBtn").addEventListener("click",()=>{
+    const idx=new Set(archive.map((r,a)=>a).filter(a=>archive[a].sel));
+    if(!idx.size){alert("Check the archived entries you want to remove first.");return;}
+    if(!confirm("Permanently remove "+idx.size+" archived entr"+(idx.size>1?"ies":"y")+"? This can't be undone."))return;
+    archive=archive.filter((r,a)=>!idx.has(a));saveArchive();render();
+  });
+
+  // Hooks the Scan tab uses to push scanned SKUs into the labels list (catalog-aware).
+  window.wmLabelsAddRows=function(items){
+    if(!Array.isArray(items))return 0;
+    let n=0;
+    items.forEach(it=>{const sku=String(it&&it.sku||"").trim();if(!sku)return;const cat=catalogGet(sku)||{};
+      const desc=String(it.desc||it.name||"").trim()||cat.desc||"";
+      const perBox=cat.perBox!==undefined?cat.perBox:12;
+      rows.push({sku,desc,perBox,expiry:"",img:cat.img||"",done:false,behind:0});n++;});
+    if(n){persist();render();}
+    return n;
+  };
+  window.wmCatalogGet=function(sku){return catalogGet(sku);};
   // Backup / restore the whole labels database (entries + saved SKU catalog) as one JSON file
   document.getElementById("backupBtn").addEventListener("click",()=>{
     const data={v:1,rows:rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:r.img,done:!!r.done})),catalog};
@@ -774,6 +906,81 @@ function showTab(name){
   }
 
   loadRows();syncCatalog();render();autoloadBundledLabels().then(autoloadBundledPhotos);
+})();
+
+/* ================= SCAN → IMPORT ================= */
+(function(){
+  const SBKEY="wm_scan_buffer_v1";
+  let buf=[]; try{buf=JSON.parse(localStorage.getItem(SBKEY))||[];}catch(e){buf=[];} if(!Array.isArray(buf))buf=[];
+  function save(){try{localStorage.setItem(SBKEY,JSON.stringify(buf));}catch(e){}}
+  const $=id=>document.getElementById(id);
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
+  function render(){
+    $("scanCount").textContent=buf.length;
+    const list=$("scanList");
+    $("scanImport").disabled=!buf.length; $("scanClear").disabled=!buf.length;
+    if(!buf.length){list.innerHTML='<div class="scanempty">Nothing scanned yet.</div>';return;}
+    list.innerHTML=buf.map((it,i)=>'<div class="scanitem"><span class="code">'+esc(it.sku)+'</span><input class="nm" data-i="'+i+'" value="'+esc(it.name||"")+'" placeholder="Product name"><button data-i="'+i+'" title="Remove">&#10005;</button></div>').join("");
+  }
+  function flash(msg){$("scanHud").textContent=msg||"";}
+  function addCode(code,name){
+    code=String(code||"").replace(/\s+/g,"").trim(); if(!code)return false;
+    if(buf.some(b=>b.sku===code)){flash("Already listed: "+code);return false;}
+    let nm=String(name||"").trim();
+    if(!nm && window.wmCatalogGet){const c=window.wmCatalogGet(code);if(c&&c.desc)nm=c.desc;}
+    buf.unshift({sku:code,name:nm}); save(); render(); return true;
+  }
+  $("scanAdd").addEventListener("click",()=>{if(addCode($("scanCode").value,$("scanName").value)){$("scanCode").value="";$("scanName").value="";$("scanCode").focus();}});
+  $("scanCode").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("scanAdd").click();}});
+  $("scanList").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;buf.splice(+b.dataset.i,1);save();render();});
+  $("scanList").addEventListener("change",e=>{if(e.target.matches("input.nm")){buf[+e.target.dataset.i].name=e.target.value;save();}});
+  $("scanImport").addEventListener("click",()=>{
+    if(!buf.length)return;
+    const n=window.wmLabelsAddRows?window.wmLabelsAddRows(buf.map(b=>({sku:b.sku,name:b.name}))):0;
+    buf=[];save();render();
+    alert("Imported "+n+" item"+(n===1?"":"s")+" into Labels.");
+    if(n)showTab("labels");
+  });
+  $("scanClear").addEventListener("click",()=>{if(buf.length&&confirm("Clear the scanned list?")){buf=[];save();render();}});
+
+  /* ----- live camera scanning (native BarcodeDetector; manual entry always works) ----- */
+  let stream=null,scanning=false,detector=null,facing="environment",lastCode="",lastAt=0,timer=0;
+  const video=$("scanVideo"),cam=$("scanCam");
+  const supported=()=>("BarcodeDetector" in window);
+  async function ensureDetector(){if(detector)return detector;if(!supported())return null;try{const f=await window.BarcodeDetector.getSupportedFormats();detector=new window.BarcodeDetector({formats:f});}catch(e){detector=null;}return detector;}
+  function beep(){try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const ac=beep._a||(beep._a=new C());const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=1200;g.gain.value=.05;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+.07);}catch(e){}}
+  function onCode(v){v=String(v||"").replace(/\s+/g,"");if(!v)return;const now=Date.now();if(v===lastCode&&now-lastAt<2500)return;lastCode=v;lastAt=now;try{navigator.vibrate&&navigator.vibrate(30);}catch(e){}beep();if(addCode(v,""))flash("+ "+v);}
+  async function loop(){
+    if(!scanning)return;
+    try{if(detector){const codes=await detector.detect(video);if(codes&&codes.length)onCode(codes[0].rawValue);}}catch(e){}
+    if(scanning)timer=setTimeout(loop,250);
+  }
+  async function start(){
+    if(scanning)return;
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){alert("Camera isn't available on this browser — type or paste codes instead.");return;}
+    $("scanCamBtn").disabled=true;
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing},audio:false});
+      video.srcObject=stream;await video.play();
+      cam.classList.add("on");scanning=true;
+      $("scanCamBtn").innerHTML="&#9632; Stop camera";$("scanFlip").style.display="";
+      const d=await ensureDetector();
+      if(d){flash("scanning…");loop();}else{flash("no decoder — type codes below");}
+    }catch(e){alert("Camera blocked: "+(e&&e.name?e.name:"error")+". Allow camera access, or type codes.");cam.classList.remove("on");}
+    finally{$("scanCamBtn").disabled=false;}
+  }
+  function stop(){
+    scanning=false;if(timer){clearTimeout(timer);timer=0;}
+    if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
+    video.srcObject=null;cam.classList.remove("on");
+    $("scanCamBtn").innerHTML="&#128247; Start camera";$("scanFlip").style.display="none";flash("");
+  }
+  $("scanCamBtn").addEventListener("click",()=>scanning?stop():start());
+  $("scanFlip").addEventListener("click",async()=>{facing=facing==="environment"?"user":"environment";stop();await start();});
+  window.wmScanOnTab=function(active){if(!active)stop();};   // showTab stops the camera when you leave Scan
+  window.addEventListener("pagehide",stop);
+  if(!supported()){$("scanPh").innerHTML='Live scanning needs Chrome/Edge on Android (or another Chromium browser).<br>You can still <b>type or paste</b> codes below.';}
+  render();
 })();
 </script>
 </body>
