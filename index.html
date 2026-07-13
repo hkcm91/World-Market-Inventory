@@ -60,8 +60,10 @@
   .summary{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
   .chip{font-size:14px;padding:7px 13px;border:1px solid var(--line);background:var(--card2);border-radius:999px;color:var(--muted)}
   .chip b{color:var(--ink);font-variant-numeric:tabular-nums}
-  /* react on touchend immediately — no 300ms double-tap-zoom wait on any control */
+  /* react on touchend immediately — no 300ms double-tap-zoom wait on any control;
+     no text selection on rapid taps either */
   button,input,select,label{touch-action:manipulation}
+  button,label{-webkit-user-select:none;user-select:none}
   .strip{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 16px;margin-bottom:12px;box-shadow:var(--shadow)}
   .strip .sku{font-weight:800;font-size:26px;letter-spacing:.01em;font-variant-numeric:tabular-nums;word-break:break-all;color:var(--ink)}
   .strip .desc{color:var(--muted);font-size:15px;margin-top:4px;min-height:16px}
@@ -173,7 +175,7 @@
 </style>
 </head>
 <body>
-<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.2</span></h1></header>
+<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.3</span></h1></header>
 <div class="tabs">
   <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
   <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
@@ -464,12 +466,34 @@ function showTab(name){
   const imgCache=new Map();   // src -> HTMLImageElement | null(failed)
   // SKU catalog: remembers desc / qty-per-box / image per SKU so you never re-enter a SKU's info
   let catalog={}; try{catalog=JSON.parse(localStorage.getItem(CATKEY))||{};}catch(e){catalog={};}
-  function saveCatalog(){try{localStorage.setItem(CATKEY,JSON.stringify(catalog));}catch(e){}}
+  // IMPORTANT: photo data-URIs must NEVER go into localStorage. photos.json alone is
+  // 5MB and localStorage tops out around 5MB total — storing images in rows + catalog
+  // blew the quota, every save threw, and nothing on the device persisted anymore.
+  // Images live in memory only and rehydrate from photos.json (and userPhotos) on load.
+  function keepImg(img){return (img&&!/^data:/i.test(img))?img:"";}
+  // Hand-added photos (the per-label "Add photo" upload) are the one thing that must
+  // survive reload from this device — kept in their own small store.
+  const UPKEY="wm_user_photos_v1";
+  let userPhotos={}; try{userPhotos=JSON.parse(localStorage.getItem(UPKEY))||{};}catch(e){userPhotos={};}
+  let bundledPhotos=null;   // photos.json map once fetched — used to skip re-storing bundle images
+  let storageWarned=false;
+  function storageAlert(){
+    toast("&#9888; Couldn't save &mdash; device storage is full");
+    if(storageWarned)return; storageWarned=true;
+    alert("This device's storage for the app is full, so changes can't be saved.\n\nTry Backup, then Restore after clearing site data — or send a screenshot of this message.");
+  }
+  function saveUserPhotos(){try{localStorage.setItem(UPKEY,JSON.stringify(userPhotos));}catch(e){storageAlert();}}
+  function saveCatalog(){
+    try{
+      const slim={};for(const k in catalog){const c=catalog[k]||{};slim[k]={desc:c.desc||"",perBox:c.perBox,img:keepImg(c.img)};}
+      localStorage.setItem(CATKEY,JSON.stringify(slim));
+    }catch(e){storageAlert();}
+  }
   // Archive: entries stashed out of the active list to be restored when relevant again.
   let archive=[]; try{archive=JSON.parse(localStorage.getItem(ARCKEY))||[];}catch(e){archive=[];}
   if(!Array.isArray(archive))archive=[];
-  function cleanArc(r){return {sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",behind:Math.max(0,intOf(r.behind)),printed:!!r.printed,archivedAt:r.archivedAt||Date.now()};}
-  function saveArchive(){try{localStorage.setItem(ARCKEY,JSON.stringify(archive.map(cleanArc)));}catch(e){}}
+  function cleanArc(r){return {sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:keepImg(r.img),behind:Math.max(0,intOf(r.behind)),printed:!!r.printed,archivedAt:r.archivedAt||Date.now()};}
+  function saveArchive(){try{localStorage.setItem(ARCKEY,JSON.stringify(archive.map(cleanArc)));}catch(e){storageAlert();}}
   function syncCatalog(){rows.forEach(r=>{const c=catalog[r.sku]||{};catalog[r.sku]={desc:r.desc||c.desc||"",perBox:(r.perBox!==undefined&&r.perBox!=="")?intOf(r.perBox):(c.perBox!==undefined?c.perBox:12),img:r.img||c.img||""};});saveCatalog();}
   function catalogGet(sku){return catalog[String(sku)]||null;}
   function intOf(v){return Math.max(0,parseInt(v)||0);}
@@ -483,6 +507,8 @@ function showTab(name){
       archive.forEach(r=>present.add(String(r.sku)));
       SEED.forEach(s=>{if(!present.has(String(s.sku))){const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)rows.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:"",done:false,behind:0});}});
     } else rows=expandSeed();
+    // photos aren't persisted with the rows (see keepImg) — put hand-added ones back
+    rows.forEach(r=>{if(!r.img&&userPhotos[r.sku])r.img=userPhotos[r.sku];});
     sweepPrinted();
   }
   // Anything flagged "done" (printed) belongs in the archive now, not in the working list.
@@ -495,14 +521,27 @@ function showTab(name){
     persist();saveArchive();
   }
   // persist a clean projection (drops the transient print-selection flag) and keep the catalog in sync
-  function persist(){localStorage.setItem(KEY,JSON.stringify(rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:r.img,done:!!r.done,behind:Math.max(0,intOf(r.behind))}))));syncCatalog();}
+  function persist(){
+    try{localStorage.setItem(KEY,JSON.stringify(rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:keepImg(r.img),done:!!r.done,behind:Math.max(0,intOf(r.behind))}))));}
+    catch(e){storageAlert();}
+    syncCatalog();
+  }
   // last size token from a description, e.g. "HARIBO ... BAG 4OZ" -> "4OZ"
   function parseSize(d){if(!d)return"";const re=/(\d+(?:\.\d+)?)\s*(OZ|Z|LBS?|G|KG|ML|L|CT|PK|PC|PCS|PACK|COUNT)\b/gi;let m,last="";while((m=re.exec(String(d)))!==null)last=(m[1]+m[2]).toUpperCase();return last;}
   // downscale an uploaded image file to a small JPEG data-URI so localStorage stays light
   function fileToThumb(file){return new Promise((res,rej)=>{const fr=new FileReader();fr.onerror=rej;fr.onload=()=>{const im=new Image();im.onerror=rej;im.onload=()=>{const max=240;let w=im.width,h=im.height,s=Math.min(1,max/Math.max(w,h));w=Math.max(1,Math.round(w*s));h=Math.max(1,Math.round(h*s));const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,0,0,w,h);try{res(c.toDataURL('image/jpeg',0.72));}catch(e){rej(e);}};im.src=fr.result;};fr.readAsDataURL(file);});}
   // preload every referenced image (data-URI or URL) into imgCache before drawing
   function ensureImages(list){const srcs=[...new Set(list.map(r=>r.img).filter(Boolean))].filter(s=>!imgCache.has(s));return Promise.all(srcs.map(src=>new Promise(done=>{const im=new Image();if(/^https?:/i.test(src))im.crossOrigin='anonymous';im.onload=()=>{imgCache.set(src,im);done();};im.onerror=()=>{imgCache.set(src,null);done();};im.src=src;})));}
-  function applyImages(map){let n=0;rows.forEach(r=>{const v=map[r.sku];if(typeof v==="string"&&v){r.img=v;n++;}});if(n){persist();render();}return n;}
+  function applyImages(map){
+    let n=0,saveUp=false;
+    rows.forEach(r=>{const v=map[r.sku];if(typeof v==="string"&&v){r.img=v;n++;
+      // keep imported photos that aren't in the shipped bundle so they survive reload
+      if(/^data:/i.test(v)&&(!bundledPhotos||bundledPhotos[r.sku]!==v)){userPhotos[r.sku]=v;saveUp=true;}
+    }});
+    if(saveUp)saveUserPhotos();
+    if(n){persist();render();}
+    return n;
+  }
   window.wmLabelsApplyImages=applyImages;   // hook the backend/MCP sync can call
   function totals(){const strips=rows.length;const skus=new Set(rows.map(r=>r.sku)).size;const dated=rows.filter(r=>r.expiry).length;const sel=rows.filter(r=>r.sel).length;const printCount=expand(printSet()).length;return {skus,strips,dated,sel,printCount,pages:Math.max(1,Math.ceil(Math.max(1,printCount)/PER_PAGE))};}
   // which rows will print: the checked ones if any; otherwise the whole list
@@ -578,7 +617,7 @@ function showTab(name){
     if(e.target.matches('input.bdinput')){const i=+e.target.dataset.i;rows[i].behind=Math.max(0,intOf(e.target.value));e.target.value=rows[i].behind;persist();renderCounts();return;}
     if(e.target.matches('input[type=number]')){const i=+e.target.dataset.i;rows[i].perBox=Math.max(0,intOf(e.target.value));e.target.value=rows[i].perBox;persist();renderCounts();maybeApply(i);}
     if(e.target.matches('input[type=date]')){const i=+e.target.dataset.i;rows[i].expiry=e.target.value||"";persist();render();}
-    if(e.target.matches('input[type=file]')){const i=+e.target.dataset.i,f=e.target.files&&e.target.files[0];if(!f)return;fileToThumb(f).then(uri=>{rows[i].img=uri;persist();render();}).catch(()=>alert("Couldn't read that image."));}
+    if(e.target.matches('input[type=file]')){const i=+e.target.dataset.i,f=e.target.files&&e.target.files[0];if(!f)return;fileToThumb(f).then(uri=>{rows[i].img=uri;userPhotos[rows[i].sku]=uri;saveUserPhotos();persist();render();}).catch(()=>alert("Couldn't read that image."));}
   });
   // The Archive tab's list: restore / remove single entries, check boxes for batch actions.
   document.getElementById("alist").addEventListener("click",e=>{
@@ -613,6 +652,9 @@ function showTab(name){
     el.innerHTML=msg;el.classList.add("show");
     clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove("show"),2800);
   }
+  // Surface unexpected errors on screen — "nothing happened" taps get a visible reason
+  // (and appear in screenshots) instead of dying silently in the console.
+  window.addEventListener("error",e=>{try{toast("&#9888; Error: "+String(e.message||e.error||"unknown").slice(0,90));}catch(x){}});
   function renderArchiveInto(list){
     if(!archive.length){list.innerHTML='<div class="card empty">Nothing archived yet. On the <b>Labels</b> tab, check labels and tap <b>&#10003; Mark printed</b> (or <b>&#128230; Archive</b>) &mdash; they land here and drop off that list.</div>';return;}
     list.innerHTML=archive.map((r,a)=>{
@@ -813,13 +855,19 @@ function showTab(name){
     }).catch(()=>{});
   }
   // Product photos ship with the app (photos.json, same origin) and apply themselves on
-  // open — any SKU without an image yet gets its World Market photo. User-added photos win.
+  // EVERY open — images are memory-only (never in localStorage, see keepImg), so this
+  // is what puts them back after each reload. User-added photos win.
   function autoloadBundledPhotos(){
-    if(!rows.some(r=>!r.img))return;                       // everything already has a photo
     fetch("photos.json",{cache:"force-cache"}).then(r=>r.ok?r.json():null).then(map=>{
       if(!map||typeof map!=="object")return;
+      bundledPhotos=map;
+      // one-time rescue: custom photos that older versions stored inside the rows
+      // themselves move to the userPhotos store before persist() strips them away
+      let saveUp=false;
+      rows.forEach(r=>{if(r.img&&/^data:/i.test(r.img)&&map[r.sku]!==r.img&&!userPhotos[r.sku]){userPhotos[r.sku]=r.img;saveUp=true;}});
+      if(saveUp)saveUserPhotos();
       let n=0;rows.forEach(r=>{if(!r.img&&typeof map[r.sku]==="string"&&map[r.sku]){r.img=map[r.sku];n++;}});
-      if(n){persist();render();}
+      if(n)render();
     }).catch(()=>{});
   }
   document.getElementById("importImgs").addEventListener("click",()=>document.getElementById("imgImportIn").click());
