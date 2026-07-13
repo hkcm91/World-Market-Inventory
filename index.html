@@ -205,7 +205,7 @@
 </style>
 </head>
 <body>
-<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.9</span></h1></header>
+<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.10</span></h1></header>
 <div class="tabs">
   <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
   <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
@@ -1203,7 +1203,7 @@ function showTab(name){
   }
   // Shelf-talker geometry (pt): barcode zone is shared by the canvas renderer and the
   // PDF's vector barcode so they land in exactly the same place.
-  const SHELF={BCW:42,BCH:20,BCM:5};   // barcode: wide and short, like the real tags
+  const SHELF={BCW:50,BCH:16,BCM:6,BCY:46};   // barcode: wide + short, tucked under the price
   const SFONT="Montserrat, Helvetica, Arial, sans-serif";
   function ensureShelfFont(){try{return Promise.all([document.fonts.load("700 16px Montserrat"),document.fonts.load("500 16px Montserrat")]).catch(()=>{});}catch(e){return Promise.resolve();}}
   // Render one shelf talker onto an offscreen canvas at S px per pt (shared by PDF + preview).
@@ -1224,51 +1224,59 @@ function showTab(name){
       const cw=wrapCanvas(ctx,String(r.country),pt(36),2);
       cw.forEach((ln,k)=>ctx.fillText(ln,flX,flY+flH+pt(7.5)+k*pt(6.4)));
     }
-    // barcode: wide + short, vertically centered on the right edge
-    const bcW=pt(SHELF.BCW),bcX=W-pt(SHELF.BCM)-bcW,bcH=pt(SHELF.BCH),bcY=(H-bcH)/2;
+    // right zone: price on top, barcode tucked directly beneath it (like the real tags)
+    const zoneR=W-pt(SHELF.BCM),bcW=pt(SHELF.BCW),bcX=zoneR-bcW,bcH=pt(SHELF.BCH),bcY=pt(SHELF.BCY);
     if(withBarcode!==false)drawBarcode(ctx,bcX,bcY,bcW,bcH,String(r.sku||""));
-    // price block: $ small, dollars huge, cents raised + underlined
-    let priceLeft=bcX-pt(6);
+    let priceLeft=bcX-pt(5);
     const pm=String(r.price||"").trim().match(/^\$?\s*(\d+)(?:[.,](\d{1,2}))?/);
     if(pm){
       const dollars=pm[1],cents=(pm[2]||"00").padEnd(2,"0");
-      const dFs=pt(30),cFs=pt(11),sFs=pt(9);
+      const dFs=pt(26),cFs=pt(10),sFs=pt(8);
       ctx.fillStyle="#111";
       ctx.font="700 "+dFs+"px "+SFONT;const dW=ctx.measureText(dollars).width;
       ctx.font="700 "+cFs+"px "+SFONT;const cW=ctx.measureText(cents).width;
       ctx.font="700 "+sFs+"px "+SFONT;const sW=ctx.measureText("$").width;
       const totW=sW+pt(1)+dW+pt(1.5)+cW;
-      const px=bcX-pt(7)-totW, base=H/2+dFs*0.36;
+      const px=zoneR-totW-(bcW-totW>0?(bcW-totW)/2:0),base=bcY-pt(6);   // centered over the barcode
       ctx.font="700 "+sFs+"px "+SFONT;ctx.fillText("$",px,base-dFs*0.72+sFs*0.72);
       ctx.font="700 "+dFs+"px "+SFONT;ctx.fillText(dollars,px+sW+pt(1),base);
       const cx0=px+sW+pt(1)+dW+pt(1.5),cTop=base-dFs*0.72;
       ctx.font="700 "+cFs+"px "+SFONT;ctx.fillText(cents,cx0,cTop+cFs*0.72);
       ctx.fillRect(cx0,cTop+cFs*0.72+pt(1.5),cW,pt(0.8));
-      priceLeft=px-pt(6);
+      priceLeft=Math.min(priceLeft,px-pt(5));
     }
     // product name (bold, wraps fully — shrink until the longest word AND all lines fit,
     // like the real tags: no ellipsis) + "SKU; codes" line under it
     const nx=pt(48),nMaxW=priceLeft-nx;
     if(nMaxW>pt(20)){
-      const nameTxt=String(r.desc||("SKU "+r.sku)),words=nameTxt.split(/\s+/).filter(Boolean);
+      // the size/weight prints on its own line, exactly like the real tags
+      const nameRaw=String(r.desc||("SKU "+r.sku));
+      const sm=nameRaw.match(/(\d+(?:\.\d+)?)\s*(oz|z|lbs?|g|kg|ml|l|ct|pk|pcs?|pack|count)\b\.?\s*$/i);
+      let nameTxt=nameRaw,sizeTxt="";
+      if(sm&&sm.index>0){sizeTxt=sm[0].trim();nameTxt=nameRaw.slice(0,sm.index).trim();}
+      const words=nameTxt.split(/\s+/).filter(Boolean);
       const font=fs=>"700 "+fs+"px "+SFONT;
       const codesTxt=[String(r.sku||""),String(r.codes||"")].filter(Boolean).join("; ");
-      const codesH=codesTxt?pt(8.5):0, avail=H-pt(12)-codesH;   // room for the name block
+      const gap=codesTxt?pt(4):0,codesH=codesTxt?pt(6):0;
+      const avail=H-pt(10)-gap-codesH;                       // room for name + size lines
       let nFs=pt(8),lines=[];
       const fitsWords=fs=>{ctx.font=font(fs);return words.every(wd=>ctx.measureText(wd).width<=nMaxW);};
       while(nFs>pt(4.2)&&!fitsWords(nFs))nFs-=pt(0.2);
+      const extra=sizeTxt?1:0;
       for(;;){
         ctx.font=font(nFs);lines=wrapCanvas(ctx,nameTxt,nMaxW,9);
-        if((lines.length<=6&&lines.length*nFs*1.16<=avail)||nFs<=pt(4.2))break;
+        if(((lines.length+extra)<=6&&(lines.length+extra)*nFs*1.16<=avail)||nFs<=pt(4.2))break;
         nFs-=pt(0.2);
       }
-      if(lines.length*nFs*1.16>avail)lines=wrapCanvas(ctx,nameTxt,nMaxW,Math.max(1,Math.floor(avail/(nFs*1.16))));
+      if((lines.length+extra)*nFs*1.16>avail)lines=wrapCanvas(ctx,nameTxt,nMaxW,Math.max(1,Math.floor(avail/(nFs*1.16))-extra));
+      if(sizeTxt)lines=lines.concat([sizeTxt]);
       ctx.fillStyle="#111";ctx.textAlign="left";
-      const lh=nFs*1.16,blockH=lines.length*lh+codesH;
-      let ly=Math.max(pt(6),(H-blockH)/2)+nFs*0.8;
+      const lh=nFs*1.16,blockH=lines.length*lh+gap+codesH;
+      let ly=Math.max(pt(5),(H-blockH)/2)+nFs*0.8;
       ctx.font=font(nFs);
       lines.forEach(ln=>{ctx.fillText(ln,nx,ly);ly+=lh;});
-      if(codesTxt){ctx.font="500 "+pt(5.2)+"px "+SFONT;ctx.fillStyle="#333";ctx.fillText(codesTxt,nx,ly+pt(0.5));}
+      // tiny SKU/codes line, clearly separated from the name block
+      if(codesTxt){ctx.font="500 "+pt(4.6)+"px "+SFONT;ctx.fillStyle="#444";ctx.fillText(codesTxt,nx,ly+gap-pt(1));}
     }
     return shelfCv;
   }
@@ -1292,7 +1300,7 @@ function showTab(name){
         // barcode as vector rects: crisp at any print resolution, tiny in the file
         const pat=code128(String(r.sku||""));
         if(pat){
-          const bw=SHELF.BCW,bx=x+L.SW-SHELF.BCM-bw,bh=SHELF.BCH,by=yt+(L.SH-bh)/2;
+          const bw=SHELF.BCW,bx=x+L.SW-SHELF.BCM-bw,bh=SHELF.BCH,by=yt+SHELF.BCY;
           const modules=[...pat].reduce((s,c)=>s+ +c,0),mw=bw/modules;let cx=bx;
           doc.setFillColor(17,17,17);
           for(let k=0;k<pat.length;k++){const span=+pat[k]*mw;if(k%2===0)doc.rect(cx,by,span,bh,"F");cx+=span;}
