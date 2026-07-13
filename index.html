@@ -127,6 +127,12 @@
   .dtog.on{background:var(--accent2);color:#fff;border-color:var(--accent2)}
   .strip.isdone{opacity:.62}
   .strip.isdone .sku{text-decoration:line-through;text-decoration-thickness:2px}
+  /* ---- selection toolbar (PDF sheet planning) ---- */
+  .selbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .selinfo{font-size:12px;color:var(--muted);flex:1;min-width:150px;line-height:1.4}
+  .selinfo b{color:var(--ink);font-variant-numeric:tabular-nums}
+  .selbtns{display:flex;gap:8px}
+  .selbar .pill{cursor:pointer}
   /* ---- archive ---- */
   .arcbox{width:22px;height:22px;accent-color:var(--accent2);cursor:pointer}
   .arcmeta{font-size:11px;color:var(--muted);margin-top:6px}
@@ -143,10 +149,17 @@
   .scanrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center}
   .scanrow input{flex:1;min-width:120px;padding:11px;border:1px solid var(--line);border-radius:8px;font-size:16px;color:var(--ink);background:#fff}
   .scanrow .pill{cursor:pointer}
-  .scanitem{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px}
+  .wflabel{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+  .wfselect{flex:1;min-width:160px;padding:11px;border:1px solid var(--accent);border-radius:8px;font-size:15px;font-weight:700;color:var(--ink);background:#fff}
+  .scanitem{display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px;flex-wrap:wrap}
   .scanitem .code{font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+  .scanitem .tag{font-size:10px;font-weight:800;letter-spacing:.03em;padding:2px 7px;border-radius:999px;white-space:nowrap}
+  .scanitem .tag.ok{background:#e5efe6;color:#2f7d4f;border:1px solid #b9d9c2}
+  .scanitem .tag.new{background:#fbeee9;color:#9a2f14;border:1px solid #e6c3ba}
   .scanitem input.nm{flex:1;min-width:90px;padding:8px;border:1px solid var(--line);border-radius:7px;font-size:14px;background:#fff;color:var(--ink)}
-  .scanitem button{border:1px solid #e6c3ba;background:#fff;color:#9a2f14;border-radius:7px;height:32px;padding:0 11px;font-weight:800;cursor:pointer}
+  .scanitem input.qty{width:54px;padding:8px;border:1px solid var(--line);border-radius:7px;font-size:14px;background:#fff;color:var(--ink);text-align:center;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+  .scanitem input.qty::-webkit-outer-spin-button,.scanitem input.qty::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .scanitem button.rm{border:1px solid #e6c3ba;background:#fff;color:#9a2f14;border-radius:7px;height:32px;padding:0 11px;font-weight:800;cursor:pointer}
   .scanempty{color:var(--muted);text-align:center;padding:16px;font-size:13px}
   #scanImport:disabled,#scanClear:disabled{opacity:.45}
 </style>
@@ -199,6 +212,13 @@
     <input id="dataIn" type="file" accept="application/json,.json" style="display:none">
   </div>
   <div class="fchips" id="lfilter"></div>
+  <div class="selbar" id="selbar">
+    <span class="selinfo" id="selInfo"></span>
+    <span class="selbtns">
+      <button class="pill" id="selNext">Select next 30</button>
+      <button class="pill" id="selClear">Clear</button>
+    </span>
+  </div>
   <div id="llist"></div>
   <button class="add-toggle" id="addToggle">+ Add a strip by hand</button>
   <div class="add-form" id="addForm">
@@ -217,7 +237,14 @@
 <div class="tabpage" id="page-scan"><div class="wrap scanwrap">
   <div class="card">
     <h2>Scan to import</h2>
-    <p class="note" style="margin-top:0">Scan barcodes off <b>pick tickets</b> or <b>product boxes</b> to capture the SKU (and name), then <b>Import</b> them straight into your Labels list. No camera? Type or paste a code below.</p>
+    <div class="scanrow" style="margin-top:0">
+      <label class="wflabel" for="scanWorkflow">Workflow</label>
+      <select id="scanWorkflow" class="wfselect">
+        <option value="topstock">Top Stock Inventory</option>
+        <option value="preview">Preview only (just look up)</option>
+      </select>
+    </div>
+    <p class="note" style="margin-top:8px">Pick a workflow, then scan barcodes off <b>pick tickets</b> or <b>product boxes</b>. Each scan looks up the SKU so you can see what&rsquo;s in your stock list, its name and qty/box, before <b>Import</b> sends the batch into that workflow. No camera? Type or paste a code below.</p>
     <div class="cam" id="scanCam">
       <video id="scanVideo" playsinline muted></video>
       <div class="reticle"></div>
@@ -235,7 +262,7 @@
     </div>
   </div>
   <div class="card">
-    <div class="summary"><span class="chip">Scanned <b id="scanCount">0</b></span></div>
+    <div class="summary"><span class="chip">Scanned <b id="scanCount">0</b></span><span class="chip" id="scanWfChip"></span></div>
     <div id="scanList"><div class="scanempty">Nothing scanned yet.</div></div>
     <div class="scanrow">
       <button class="pill" id="scanImport" style="background:var(--accent2);color:#fff;border-color:var(--accent2);cursor:pointer">&#11015; Import to Labels</button>
@@ -461,7 +488,12 @@ function showTab(name){
     const arcView=(filter==="archived");
     document.getElementById("lbarMain").style.display=arcView?"none":"contents";
     document.getElementById("lbarArc").style.display=arcView?"contents":"none";
+    document.getElementById("selbar").style.display=arcView?"none":"flex";
     if(arcView){renderArchiveInto(list);return;}
+    // Selection summary — the checked set is what Download/Archive act on; plan PDF sheets with it.
+    document.getElementById("selInfo").innerHTML = t.sel
+      ? '<b>'+t.sel+'</b> selected &middot; '+t.pages+' PDF sheet'+(t.pages>1?'s':'')+' &middot; used for <b>Download</b> &amp; <b>Archive</b>'
+      : 'No selection &mdash; <b>Download</b> prints all '+t.todo+' to-print ('+t.pages+' sheet'+(t.pages>1?'s':'')+'). Tap &ldquo;Select next '+PER_PAGE+'&rdquo; to build sheets.';
     const shown=rows.map((r,i)=>({r,i})).filter(o=>filter==="all"||(filter==="done"?o.r.done:!o.r.done));
     if(rows.length===0){list.innerHTML='<div class="card empty">No labels yet.</div>';}
     else if(shown.length===0){list.innerHTML='<div class="card empty">Nothing '+(filter==="done"?"printed":"left to print")+'.</div>';}
@@ -559,12 +591,24 @@ function showTab(name){
     let n=0;
     items.forEach(it=>{const sku=String(it&&it.sku||"").trim();if(!sku)return;const cat=catalogGet(sku)||{};
       const desc=String(it.desc||it.name||"").trim()||cat.desc||"";
-      const perBox=cat.perBox!==undefined?cat.perBox:12;
+      const perBox=(it.perBox!==undefined&&it.perBox!=="")?Math.max(0,intOf(it.perBox)):(cat.perBox!==undefined?cat.perBox:12);
       rows.push({sku,desc,perBox,expiry:"",img:cat.img||"",done:false,behind:0});n++;});
     if(n){persist();render();}
     return n;
   };
   window.wmCatalogGet=function(sku){return catalogGet(sku);};
+
+  /* ---- Selection helpers: build a PDF one sheet (PER_PAGE) at a time ---- */
+  document.getElementById("selNext").textContent="Select next "+PER_PAGE;
+  document.getElementById("selNext").addEventListener("click",()=>{
+    // add the next PER_PAGE not-yet-selected rows in the current view to the selection
+    const shownIdx=rows.map((r,i)=>i).filter(i=>filter==="all"||(filter==="done"?rows[i].done:!rows[i].done));
+    let added=0;
+    for(const i of shownIdx){ if(added>=PER_PAGE)break; if(!rows[i].sel){rows[i].sel=true;added++;} }
+    if(!added) alert("Everything in this view is already selected.");
+    render();
+  });
+  document.getElementById("selClear").addEventListener("click",()=>{ if(rows.some(r=>r.sel)){rows.forEach(r=>r.sel=false);render();} });
   // Backup / restore the whole labels database (entries + saved SKU catalog) as one JSON file
   document.getElementById("backupBtn").addEventListener("click",()=>{
     const data={v:1,rows:rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:r.img,done:!!r.done})),catalog};
@@ -910,36 +954,57 @@ function showTab(name){
 
 /* ================= SCAN → IMPORT ================= */
 (function(){
-  const SBKEY="wm_scan_buffer_v1";
+  const SBKEY="wm_scan_buffer_v1", WFKEY="wm_scan_workflow";
+  // Workflows: what a scan is for, and where Import sends the batch.
+  const WF={topstock:{label:"Top Stock Inventory",dest:"labels"},preview:{label:"Preview only",dest:null}};
   let buf=[]; try{buf=JSON.parse(localStorage.getItem(SBKEY))||[];}catch(e){buf=[];} if(!Array.isArray(buf))buf=[];
   function save(){try{localStorage.setItem(SBKEY,JSON.stringify(buf));}catch(e){}}
   const $=id=>document.getElementById(id);
   function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
+  function wf(){const v=$("scanWorkflow").value;return WF[v]?v:"topstock";}
+  // Look up what's available for a scanned code: its known name, qty/box, and whether it's in the stock list.
+  function lookup(code){const c=(window.wmCatalogGet&&window.wmCatalogGet(code))||null;return {name:(c&&c.desc)||"",qty:(c&&c.perBox!==undefined&&c.perBox!=="")?c.perBox:"",known:!!c};}
   function render(){
+    const w=wf();
     $("scanCount").textContent=buf.length;
+    $("scanWfChip").innerHTML="Adding to: <b>"+esc(WF[w].label)+"</b>";
+    const imp=$("scanImport");
+    if(w==="preview"){imp.disabled=true;imp.textContent="Preview only — not importing";}
+    else{imp.disabled=!buf.length;imp.innerHTML="⬇ Import"+(buf.length?(" "+buf.length):"")+" → "+esc(WF[w].label);}
+    $("scanClear").disabled=!buf.length;
     const list=$("scanList");
-    $("scanImport").disabled=!buf.length; $("scanClear").disabled=!buf.length;
     if(!buf.length){list.innerHTML='<div class="scanempty">Nothing scanned yet.</div>';return;}
-    list.innerHTML=buf.map((it,i)=>'<div class="scanitem"><span class="code">'+esc(it.sku)+'</span><input class="nm" data-i="'+i+'" value="'+esc(it.name||"")+'" placeholder="Product name"><button data-i="'+i+'" title="Remove">&#10005;</button></div>').join("");
+    list.innerHTML=buf.map((it,i)=>'<div class="scanitem"><span class="code">'+esc(it.sku)+'</span>'
+      +'<span class="tag '+(it.known?'ok':'new')+'">'+(it.known?'in stock list':'new')+'</span>'
+      +'<input class="nm" data-i="'+i+'" value="'+esc(it.name||"")+'" placeholder="Product name">'
+      +'<input class="qty" data-i="'+i+'" type="number" min="0" value="'+(it.qty===""||it.qty==null?"":esc(it.qty))+'" title="Qty / box">'
+      +'<button class="rm" data-i="'+i+'" title="Remove">&#10005;</button></div>').join("");
   }
   function flash(msg){$("scanHud").textContent=msg||"";}
   function addCode(code,name){
     code=String(code||"").replace(/\s+/g,"").trim(); if(!code)return false;
     if(buf.some(b=>b.sku===code)){flash("Already listed: "+code);return false;}
-    let nm=String(name||"").trim();
-    if(!nm && window.wmCatalogGet){const c=window.wmCatalogGet(code);if(c&&c.desc)nm=c.desc;}
-    buf.unshift({sku:code,name:nm}); save(); render(); return true;
+    const info=lookup(code);
+    buf.unshift({sku:code,name:String(name||"").trim()||info.name,qty:info.qty,known:info.known}); save(); render(); return true;
   }
+  // restore the last-used workflow, and re-render when it changes
+  try{const w=localStorage.getItem(WFKEY);if(w&&WF[w])$("scanWorkflow").value=w;}catch(e){}
+  $("scanWorkflow").addEventListener("change",()=>{try{localStorage.setItem(WFKEY,$("scanWorkflow").value);}catch(e){}render();});
   $("scanAdd").addEventListener("click",()=>{if(addCode($("scanCode").value,$("scanName").value)){$("scanCode").value="";$("scanName").value="";$("scanCode").focus();}});
   $("scanCode").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("scanAdd").click();}});
-  $("scanList").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;buf.splice(+b.dataset.i,1);save();render();});
-  $("scanList").addEventListener("change",e=>{if(e.target.matches("input.nm")){buf[+e.target.dataset.i].name=e.target.value;save();}});
+  $("scanList").addEventListener("click",e=>{const b=e.target.closest("button.rm");if(!b)return;buf.splice(+b.dataset.i,1);save();render();});
+  $("scanList").addEventListener("change",e=>{
+    if(e.target.matches("input.nm")){buf[+e.target.dataset.i].name=e.target.value;save();}
+    else if(e.target.matches("input.qty")){buf[+e.target.dataset.i].qty=e.target.value;save();}
+  });
   $("scanImport").addEventListener("click",()=>{
-    if(!buf.length)return;
-    const n=window.wmLabelsAddRows?window.wmLabelsAddRows(buf.map(b=>({sku:b.sku,name:b.name}))):0;
+    const w=wf(); if(w==="preview"||!buf.length)return;
+    const dest=WF[w].dest;
+    let n=0;
+    if(dest==="labels"&&window.wmLabelsAddRows){n=window.wmLabelsAddRows(buf.map(b=>({sku:b.sku,name:b.name,perBox:b.qty})));}
     buf=[];save();render();
-    alert("Imported "+n+" item"+(n===1?"":"s")+" into Labels.");
-    if(n)showTab("labels");
+    alert("Imported "+n+" item"+(n===1?"":"s")+" into "+WF[w].label+".");
+    if(n&&dest==="labels")showTab("labels");
   });
   $("scanClear").addEventListener("click",()=>{if(buf.length&&confirm("Clear the scanned list?")){buf=[];save();render();}});
 
