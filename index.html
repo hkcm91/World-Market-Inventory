@@ -182,6 +182,7 @@
   .wfselect{flex:1;min-width:170px;padding:14px;border:1px solid var(--accent);border-radius:10px;font-size:17px;font-weight:800;color:var(--ink);background:var(--card2)}
   .scanitem{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:11px 12px;margin-bottom:10px;flex-wrap:wrap}
   .scanitem .code{font-weight:800;font-size:17px;font-variant-numeric:tabular-nums;color:var(--ink);white-space:nowrap}
+  .scanitem .sthumb{width:40px;height:40px;border-radius:8px;border:1px solid var(--line);background:var(--card2) no-repeat center/cover;flex:0 0 auto}
   .scanitem .tag{font-size:11px;font-weight:800;letter-spacing:.03em;padding:3px 9px;border-radius:999px;white-space:nowrap}
   .scanitem .tag.ok{background:rgba(92,192,138,.16);color:var(--ok);border:1px solid rgba(92,192,138,.42)}
   .scanitem .tag.new{background:rgba(255,107,107,.14);color:#ff9b9b;border:1px solid rgba(255,107,107,.4)}
@@ -780,15 +781,17 @@ function showTab(name){
       const qtyGiven=(it.perBox!==undefined&&it.perBox!=="");
       const perBox=qtyGiven?Math.max(0,intOf(it.perBox)):(cat.perBox!==undefined?cat.perBox:12);
       const exp=String(it.expiry||"").trim();
+      const photo=String(it.photo||"").trim();            // World Market image fetched at scan time
+      if(photo){try{userPhotos[sku]=photo;saveUserPhotos();}catch(e){}}   // persist it so it survives reload
       const existing=rows.find(r=>r.sku===sku);          // de-dupe: update the SKU we already have
       if(existing){
         if(qtyGiven)existing.perBox=perBox;
         if(desc)existing.desc=desc;
         if(exp)existing.expiry=exp;
-        if(!existing.img&&cat.img)existing.img=cat.img;
+        if(photo)existing.img=photo; else if(!existing.img&&cat.img)existing.img=cat.img;
         updated++;
       }else{
-        rows.push({sku,desc:desc||cat.desc||"",perBox,expiry:exp,img:cat.img||"",done:false,behind:0,copies:1});added++;
+        rows.push({sku,desc:desc||cat.desc||"",perBox,expiry:exp,img:photo||cat.img||"",done:false,behind:0,copies:1});added++;
       }});
     if(added+updated){persist();render();}
     return {added,updated};
@@ -1303,8 +1306,9 @@ function showTab(name){
     const list=$("scanList");
     if(!buf.length){list.innerHTML='<div class="scanempty">Nothing scanned yet.</div>';return;}
     list.innerHTML=buf.map((it,i)=>'<div class="scanitem"><span class="code">'+esc(it.sku)+'</span>'
+      +(it.wmImg?'<span class="sthumb" style="background-image:url(\''+esc(it.wmImg)+'\')"></span>':'')
       +'<span class="tag '+(it.known?'ok':'new')+'">'+(it.known?'in stock list':'new')+'</span>'
-      +(it.online?'<span class="tag ok" title="named from an online lookup">&#127760; online</span>':'')
+      +(it.wm?'<span class="tag ok" title="matched on worldmarket.com">WM</span>':(it.online?'<span class="tag ok" title="named from an online lookup">&#127760; online</span>':''))
       +expTag(it)
       +'<input class="nm" data-i="'+i+'" value="'+esc(it.name||"")+'" placeholder="Product name">'
       +'<input class="qty" data-i="'+i+'" type="number" min="0" value="'+(it.qty===""||it.qty==null?"":esc(it.qty))+'" title="Qty / box">'
@@ -1352,15 +1356,48 @@ function showTab(name){
     if(info.known){flash("✓ "+(info.name||sku));return true;}
     if(buf[0].name){return true;}                         // name provided manually — nothing to fetch
     const dig=String(sku).replace(/\D/g,"");
-    if(dig.length>=8){                                     // product UPC/EAN — try to name it online
-      flash("looking up "+sku+" online…");
-      lookupOnline(sku).then(nm=>{const it=buf.find(b=>b.sku===sku);if(!it)return;
-        if(nm&&!it.name){it.name=nm;it.online=true;save();render();flash("found: "+nm);}
-        else flash(sku+" — not found online; type a name");});
-    }else{
-      flash("scanned "+sku+" — new item; tap ✨ Read box or add a name");   // WM shelf-tag SKU
-    }
+    if(dig.length>=8){ flash("looking up "+sku+" online…"); enrichNew(sku); }   // product UPC/EAN
+    else{ flash("scanned "+sku+" — new item; tap ✨ Read box or add a name"); } // WM shelf-tag SKU
     return true;
+  }
+  // Resolve a scanned product barcode to a World Market SKU + name + image. Tries the sync server
+  // first (same-origin /resolve, reliable), then a best-effort phone reader-proxy, so it works
+  // whether or not the sync server is running. Returns {sku,name,image} or null.
+  async function wmResolve(upc,name){
+    if(location.protocol.indexOf("http")===0){            // 1) sync server, when the app is served from it
+      try{
+        const u=location.origin+"/resolve?upc="+encodeURIComponent(upc||"")+(name?("&q="+encodeURIComponent(name)):"");
+        const r=await fetch(u,{cache:"no-store"});
+        if(r.ok){const j=await r.json();if(j&&j.sku)return {sku:String(j.sku),name:j.name||name,image:j.image||j.imageUrl||""};}
+      }catch(e){}
+    }
+    if(name){                                             // 2) best-effort reader proxy from the phone
+      try{
+        const r=await fetch("https://r.jina.ai/https://www.worldmarket.com/search?q="+encodeURIComponent(name),{cache:"no-store"});
+        if(r.ok){const t=await r.text();
+          const sk=t.match(/\/p\/[a-z0-9\-]*?(\d{5,7})\.html/i);
+          const im=t.match(/https:\/\/www\.worldmarket\.com\/dw\/image\/v2\/[^\s")]+images\/large\/[^\s")]+\.jpg/i);
+          if(sk)return {sku:sk[1],name:name,image:im?im[0]:""};
+        }
+      }catch(e){}
+    }
+    return null;
+  }
+  // For a brand-new product barcode: name it via Open Food Facts, then upgrade to the World Market
+  // SKU + image when reachable. Everything mutates the staged item in place and fails soft.
+  async function enrichNew(barcode){
+    const it=buf.find(b=>b.sku===barcode); if(!it)return;
+    const off=await lookupOnline(barcode);
+    if(off&&!it.name){it.name=off;it.online=true;save();render();}
+    const wm=await wmResolve(barcode, off||it.name||"");
+    if(wm){
+      if(wm.sku&&String(wm.sku)!==it.sku&&!buf.some(b=>b.sku===String(wm.sku)))it.sku=String(wm.sku);
+      if(wm.name)it.name=wm.name;
+      if(wm.image)it.wmImg=wm.image;
+      it.online=true;it.wm=true;save();render();
+      flash("World Market "+it.sku+(wm.image?" + image":""));return;
+    }
+    flash(off?("found: "+off):(barcode+" — not found; type a name"));
   }
   // restore the last-used workflow, and re-render when it changes
   try{const w=localStorage.getItem(WFKEY);if(w&&WF[w])$("scanWorkflow").value=w;}catch(e){}
@@ -1376,7 +1413,7 @@ function showTab(name){
     const w=wf(); if(w==="preview"||!buf.length)return;
     const dest=WF[w].dest;
     if(dest==="labels"&&window.wmLabelsAddRows){
-      const r=window.wmLabelsAddRows(buf.map(b=>({sku:b.sku,name:b.name,perBox:b.qty,expiry:b.exp})));
+      const r=window.wmLabelsAddRows(buf.map(b=>({sku:b.sku,name:b.name,perBox:b.qty,expiry:b.exp,photo:b.wmImg})));
       buf=[];save();render();
       alert("Top Stock Inventory: "+r.added+" added"+(r.updated?(", "+r.updated+" updated (already on the list)"):"")+".");
       if(r.added||r.updated)showTab("labels");
