@@ -191,7 +191,7 @@
 </style>
 </head>
 <body>
-<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.5</span></h1></header>
+<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.6</span></h1></header>
 <div class="tabs">
   <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
   <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
@@ -900,18 +900,28 @@ function showTab(name){
       else alert('Heard: "'+t+'"\nCouldn\'t find a date. Try like "August 12 2026".');
     },{silence:1400});
   }
+  // Qty context: the whole utterance IS a number, so translate what speech-to-text
+  // commonly hears instead of a bare digit — "six" comes back as "sex", "eight" as
+  // "ate", "four" as "for"… Safe ONLY here; dates keep the strict parser so words
+  // like "for August" stay words.
+  function qtyToDigits(t){
+    t=" "+String(t).toLowerCase().replace(/[^a-z0-9\s]/g," ")+" ";
+    const homo={won:"one",juan:"one",to:"two",too:"two",tree:"three",free:"three","for":"four",fore:"four",floor:"four",sex:"six",sick:"six",sicks:"six",sax:"six",ate:"eight",aid:"eight",nein:"nine",nien:"nine",tin:"ten",tan:"ten",a:"",an:"",the:"",um:"",uh:""};
+    Object.keys(homo).forEach(k=>{t=t.replace(new RegExp("\\b"+k+"\\b","g")," "+homo[k]+" ");});
+    return speechToDigits(t);
+  }
   // Speak a quantity, e.g. "twelve" or "twenty four" -> fills Qty / box (reuses the number-word normalizer)
   function voiceQty(i){
     const btn=document.querySelector('button[data-act="voiceqty"][data-i="'+i+'"]');
     listenOnce(btn,"🎤 Say qty",t=>{
       if(!rows[i])return;
       if(!t){toast("Didn't catch that — tap and say the number");return;}
-      const m=speechToDigits(t).match(/\d+/);
+      const m=qtyToDigits(t).match(/\d+/);
       if(m){const v=Math.max(0,parseInt(m[0],10));rows[i].perBox=v;
         const inp=document.querySelector('.stepper input[type=number]:not(.bdinput)[data-i="'+i+'"]');if(inp)inp.value=v;
         persist();renderCounts();maybeApply(i);toast("Qty/box set to "+v);}
       else alert('Heard: "'+t+'"\nCouldn\'t find a number. Try like "twelve".');
-    },{quick:t=>/\d/.test(speechToDigits(t)),silence:700});   // "8" applies the moment it's heard
+    },{quick:t=>/\d/.test(qtyToDigits(t)),silence:700});   // "8" applies the moment it's heard
   }
   /* ---- Quick-qty workflow: one label at a time, in list order, qty-first ----
      Opened from a card's ⚡ Quick qty button. The qty arrives pre-selected so typing
@@ -949,10 +959,10 @@ function showTab(name){
   document.getElementById("qwMic").addEventListener("click",()=>{
     listenOnce(document.getElementById("qwMic"),"🎤 Say qty",t=>{
       if(!t){toast("Didn't catch that — tap and say the number");return;}
-      const m=speechToDigits(t).match(/\d+/);
+      const m=qtyToDigits(t).match(/\d+/);
       if(m){qwQty.value=Math.max(0,parseInt(m[0],10));qwQty.focus();try{qwQty.select();}catch(e){}}
       else toast('Heard "'+escq(t)+'" — no number in that');
-    },{quick:x=>/\d/.test(speechToDigits(x)),silence:700});
+    },{quick:x=>/\d/.test(qtyToDigits(x)),silence:700});
   });
 
   document.getElementById("tplText").addEventListener("click",()=>{template="text";localStorage.setItem(TPLKEY,template);render();});
