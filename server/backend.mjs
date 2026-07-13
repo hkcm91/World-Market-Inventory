@@ -52,6 +52,50 @@ function readBody(req) {
   });
 }
 
+/* ---- WM resolver: UPC/name -> World Market SKU + name + image (server-side, no CORS) ---- */
+const UA = "Mozilla/5.0 (compatible; WMResolve/1.0; +store-inventory)";
+async function offName(upc) {
+  const c = String(upc || "").replace(/\D/g, "");
+  if (c.length < 8 || c.length > 14) return "";
+  try {
+    const r = await fetch("https://world.openfoodfacts.org/api/v2/product/" + encodeURIComponent(c) + ".json?fields=product_name,brands");
+    if (!r.ok) return "";
+    const j = await r.json();
+    if (!j || j.status !== 1 || !j.product) return "";
+    let nm = String(j.product.product_name || "").trim(); if (!nm) return "";
+    const brand = j.product.brands ? String(j.product.brands).split(",")[0].trim() : "";
+    if (brand && nm.toLowerCase().indexOf(brand.toLowerCase()) < 0) nm = brand + " " + nm;
+    return nm.replace(/\s+/g, " ").trim();
+  } catch { return ""; }
+}
+async function wmSearch(name) {
+  if (!name) return null;
+  try {
+    const r = await fetch("https://www.worldmarket.com/search?q=" + encodeURIComponent(name), { headers: { "User-Agent": UA, Accept: "text/html" }, redirect: "follow" });
+    if (!r.ok) return null;
+    const html = await r.text();
+    const m = html.match(/<div class="product js-a-tile-data"[\s\S]*?data-image-url="[^"]*"/);
+    if (!m) return null;
+    const block = m[0];
+    const dec = (s) => String(s || "").replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+    const at = (n) => { const mm = block.match(new RegExp('data-' + n + '="([^"]*)"')); return mm ? dec(mm[1]) : ""; };
+    const sku = at("sku"); if (!sku || sku === "null") return null;
+    return { sku, name: at("product-name"), imageUrl: at("image-url").split("?")[0] };
+  } catch { return null; }
+}
+async function imgDataUri(url) {
+  if (!url) return "";
+  try {
+    const r = await fetch(url.split("?")[0] + "?sw=240&sh=240&sm=fit&q=80", { headers: { "User-Agent": UA } });
+    if (!r.ok) return "";
+    const ct = (r.headers.get("content-type") || "").split(";")[0].trim();
+    if (!/^image\//.test(ct)) return "";
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > 1_200_000) return "";
+    return "data:" + ct + ";base64," + buf.toString("base64");
+  } catch { return ""; }
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   const path = url.pathname.replace(/\/+$/, "") || "/";
@@ -90,6 +134,19 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true, added: n, images: Object.keys(db.images).length });
     }
     if (req.method === "DELETE" && path === "/images") { db.images = {}; save(); return send(res, 200, { ok: true }); }
+
+    // Resolve a scanned product barcode (or name) to a World Market SKU + name + image.
+    //   GET /resolve?upc=<barcode>   or   /resolve?q=<product name>
+    if (req.method === "GET" && path === "/resolve") {
+      const upc = url.searchParams.get("upc") || "";
+      let name = url.searchParams.get("q") || "";
+      if (!name) name = await offName(upc);
+      if (!name) return send(res, 200, { error: "no product name (UPC not in Open Food Facts) — try /resolve?q=<name>" });
+      const hit = await wmSearch(name);
+      if (!hit) return send(res, 200, { error: "not found on worldmarket.com", queried: name });
+      const image = await imgDataUri(hit.imageUrl);
+      return send(res, 200, { sku: hit.sku, name: hit.name || name, image, imageUrl: hit.imageUrl, queried: name, source: "worldmarket" });
+    }
 
     return send(res, 404, { error: "not found: " + req.method + " " + path });
   } catch (e) {
