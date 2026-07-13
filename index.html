@@ -127,6 +127,30 @@
   .dtog.on{background:var(--accent2);color:#fff;border-color:var(--accent2)}
   .strip.isdone{opacity:.62}
   .strip.isdone .sku{text-decoration:line-through;text-decoration-thickness:2px}
+
+  /* ---- scan tab ---- */
+  .scanstage{position:relative;width:100%;aspect-ratio:4/3;background:#1c1712;border-radius:12px;overflow:hidden;display:none}
+  .scanstage.live{display:block}
+  .scanstage video{width:100%;height:100%;object-fit:cover;display:block}
+  .scanline{position:absolute;left:8%;right:8%;top:50%;height:2px;background:rgba(255,80,50,.9);box-shadow:0 0 8px rgba(255,80,50,.8);animation:scansweep 1.8s ease-in-out infinite}
+  @keyframes scansweep{0%,100%{transform:translateY(-70px)}50%{transform:translateY(70px)}}
+  .scanhint{position:absolute;left:0;right:0;bottom:0;padding:8px 10px;font-size:12px;color:#fff;background:linear-gradient(transparent,rgba(0,0,0,.55));text-align:center}
+  #scanStatus{margin-top:9px;font-size:13px;min-height:18px;color:var(--accent2)}
+  #scanStatus.err{color:#9a2f14}
+  .scanrow{display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--line)}
+  .scanrow:last-child{border-bottom:0}
+  .scanrow .kind{font-size:9px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;padding:3px 6px;border-radius:6px;white-space:nowrap;flex:0 0 auto}
+  .scanrow .kind.sku{background:#eaf1ec;color:var(--accent2)}
+  .scanrow .kind.product{background:#f6ece7;color:var(--accent)}
+  .scanrow .kind.raw{background:var(--line);color:var(--muted)}
+  .scanrow .body{flex:1;min-width:0}
+  .scanrow .code{font-weight:800;font-variant-numeric:tabular-nums;font-size:15px}
+  .scanrow .dsc{font-size:12px;color:var(--muted);width:100%;border:none;background:transparent;padding:2px 0;margin-top:1px}
+  .scanrow .dsc::placeholder{color:#c3b8a4}
+  .scanrow .cnt{font-variant-numeric:tabular-nums;font-weight:800;color:var(--accent);min-width:22px;text-align:center}
+  .scanrow .stepper{flex:0 0 auto}
+  .flash{animation:flashbg .5s ease-out}
+  @keyframes flashbg{0%{background:#fff6cf}100%{background:transparent}}
 </style>
 </head>
 <body>
@@ -134,6 +158,7 @@
 <div class="tabs">
   <button class="tab active" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
   <button class="tab" id="tab-labels" onclick="showTab('labels')">Labels</button>
+  <button class="tab" id="tab-scan" onclick="showTab('scan')">Scan</button>
 </div>
 
 <!-- ===================== EXPIRY TAB ===================== -->
@@ -188,6 +213,36 @@
     <button class="send" id="fAdd">Add strip</button>
   </div>
   <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each row is one label (one per box). <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Switch to the <b>Photo</b> template to print a product image on each label &mdash; photos load automatically for items World Market carries online; add your own for the rest with <b>Add photo</b>. Tap <b>&#127908; Say date</b> to speak an expiry (e.g. &ldquo;August twelfth twenty twenty six&rdquo;). <b>Check</b> the labels you want, hit Download, then <b>Mark printed</b> &mdash; done ones stay in the list under <b>Printed</b> and drop out of <b>To print</b>. Set <b>Behind</b> to how many boxes of that SKU sit behind the front one and it auto-adds &ldquo;1 BEHIND&rdquo;, &ldquo;2 BEHIND&rdquo;&hellip; stock-depth labels after it. SKU info (name, qty/box, photo) is remembered, so re-adding a SKU auto-fills. <b>Backup</b> saves everything to a file; <b>Restore</b> brings it back. Everything saves on this device.</p>
+</div></div>
+
+<!-- ===================== SCAN TAB ===================== -->
+<div class="tabpage" id="page-scan"><div class="wrap">
+  <div class="card">
+    <div class="scanstage" id="scanStage">
+      <video id="scanVideo" playsinline muted></video>
+      <div class="scanline"></div>
+      <div class="scanhint" id="scanHint">Point the camera at a barcode &mdash; pick&nbsp;ticket SKU or product code.</div>
+    </div>
+    <button class="mic" id="scanToggle">&#128247; Start camera</button>
+    <div id="scanStatus"></div>
+    <div class="row" style="margin-top:10px">
+      <input id="scanManual" type="text" inputmode="numeric" placeholder="or type / paste a code, then Enter">
+      <button class="send" id="scanAdd">Add</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Scanned <span class="badge" id="scanCount">0</span></h2>
+    <div id="scanList"><div class="empty">Nothing scanned yet.</div></div>
+  </div>
+  <div class="card">
+    <div class="tools">
+      <button id="scanToLabels">&#127991;&#65039; Send SKUs &rarr; Labels</button>
+      <button class="ghost" id="scanCopy">&#128203; Copy</button>
+      <button class="ghost" id="scanCSV">&#11015;&#65039; CSV</button>
+      <button class="danger" id="scanClear">&#128465;&#65039; Clear</button>
+    </div>
+    <p class="note"><b>Camera scanning needs HTTPS + camera permission.</b> Codes are sorted automatically: <b>5&ndash;6 digit</b> values (World Market pick&nbsp;ticket SKUs) are matched to your saved catalog for names; <b>12&ndash;13 digit</b> values (product UPC/EAN barcodes) are kept as-is &mdash; World Market's site doesn't index those, so names stay blank for you to fill or enrich later. Scanning the same code again bumps its count. Everything saves on this device.</p>
+  </div>
 </div></div>
 
 <div class="applybar" id="applyBar"><span id="applyMsg"></span><button id="applyAll">Apply to all</button><button id="applyDismiss">Dismiss</button></div>
@@ -301,12 +356,14 @@ load();render();
 
 /* ================= TABS ================= */
 function showTab(name){
-  document.getElementById('tab-expiry').classList.toggle('active',name==='expiry');
-  document.getElementById('tab-labels').classList.toggle('active',name==='labels');
-  document.getElementById('page-expiry').classList.toggle('show',name==='expiry');
-  document.getElementById('page-labels').classList.toggle('show',name==='labels');
+  ['expiry','labels','scan'].forEach(function(n){
+    document.getElementById('tab-'+n).classList.toggle('active',name===n);
+    document.getElementById('page-'+n).classList.toggle('show',name===n);
+  });
   document.getElementById('lbar').style.display = name==='labels' ? 'flex' : 'none';
   if(name!=='labels') document.getElementById('applyBar').classList.remove('show');
+  // Release the camera whenever we leave the Scan tab (don't hold it in the background).
+  if(name!=='scan' && window.wmScanStop) window.wmScanStop();
 }
 
 /* ================= LABELS BUILDER ================= */
@@ -376,6 +433,17 @@ function showTab(name){
   function ensureImages(list){const srcs=[...new Set(list.map(r=>r.img).filter(Boolean))].filter(s=>!imgCache.has(s));return Promise.all(srcs.map(src=>new Promise(done=>{const im=new Image();if(/^https?:/i.test(src))im.crossOrigin='anonymous';im.onload=()=>{imgCache.set(src,im);done();};im.onerror=()=>{imgCache.set(src,null);done();};im.src=src;})));}
   function applyImages(map){let n=0;rows.forEach(r=>{const v=map[r.sku];if(typeof v==="string"&&v){r.img=v;n++;}});if(n){persist();render();}return n;}
   window.wmLabelsApplyImages=applyImages;   // hook the backend/MCP sync can call
+  // Look up a SKU's remembered info (desc / qty-per-box / photo), or null if unseen.
+  window.wmLabelsLookup=function(sku){return catalogGet(String(sku).replace(/\D/g,""))||null;};
+  // Add one print strip for a SKU (used by the Scan tab). Skips SKUs already in the list
+  // so scanning the same ticket twice doesn't pile up duplicate labels. Returns {added,dup}.
+  window.wmLabelsAddSku=function(sku,desc){
+    sku=String(sku).replace(/\D/g,"");if(!sku)return {added:0,dup:0};
+    if(rows.some(r=>r.sku===sku))return {added:0,dup:1};
+    const cat=catalogGet(sku)||{};
+    rows.push({sku,desc:desc||cat.desc||"",perBox:(cat.perBox!==undefined?cat.perBox:12),expiry:"",img:cat.img||"",done:false,behind:0});
+    persist();render();return {added:1,dup:0};
+  };
   function totals(){const strips=rows.length;const skus=new Set(rows.map(r=>r.sku)).size;const dated=rows.filter(r=>r.expiry).length;const done=rows.filter(r=>r.done).length;const sel=rows.filter(r=>r.sel).length;const printCount=expand(printSet()).length;return {skus,strips,dated,done,todo:strips-done,sel,printCount,pages:Math.max(1,Math.ceil(Math.max(1,printCount)/PER_PAGE))};}
   // which rows will print: the checked ones if any; otherwise the not-yet-printed ones
   // (so you never reprint what's done). Viewing "Printed" prints the done ones.
@@ -755,6 +823,147 @@ function showTab(name){
   }
 
   loadRows();syncCatalog();render();autoloadBundledLabels().then(autoloadBundledPhotos);
+})();
+
+/* ================= SCANNER (the spine) =================
+   One pipeline — feed(code,format) — fed by the phone camera, the manual field,
+   or any future workflow via window.wmScanFeed(). Codes are classified (WM pick-ticket
+   SKU vs product UPC/EAN) and collected into a per-device scan session with live counts.
+   The camera uses the native BarcodeDetector when present (Android Chrome), and lazily
+   falls back to the ZXing library (iOS Safari and anything else). */
+(function(){
+  const KEY="wm_scan_v1", DEBOUNCE=1500;
+  let items=[]; try{items=JSON.parse(localStorage.getItem(KEY))||[];}catch(e){items=[];}
+  if(!Array.isArray(items))items=[];
+  let engine=null, lastCode="", lastAt=0, actx=null;
+
+  const $=id=>document.getElementById(id);
+  const stage=$("scanStage"), video=$("scanVideo"), toggleBtn=$("scanToggle");
+  function esc(s){return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+  function escA(s){return esc(s).replace(/"/g,"&quot;");}
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(items));}catch(e){}}
+  function status(t,err){const s=$("scanStatus");s.textContent=t||"";s.className=err?"err":"";}
+  function labelKind(k){return k==="sku"?"SKU":k==="product"?"UPC":"CODE";}
+
+  // Classify a decoded value. Symbology (format) wins when we have it; length is the fallback.
+  // Pick-ticket SKUs are 5–6 digits in an internal symbology (Code128/39); product barcodes
+  // are 12–13 digit UPC/EAN. (WM's site doesn't index UPCs — confirmed — so those stay raw.)
+  function classify(raw,fmt){
+    fmt=String(fmt||"").toLowerCase();
+    const digits=String(raw).replace(/\D/g,"");
+    if(/ean|upc/.test(fmt)) return {kind:"product",code:digits||String(raw).trim()};
+    if(/^\d{4,8}$/.test(digits)) return {kind:"sku",code:digits};
+    if(/^\d{12,14}$/.test(digits)) return {kind:"product",code:digits};
+    return {kind:"raw",code:String(raw).trim()};
+  }
+  function cue(){
+    try{if(navigator.vibrate)navigator.vibrate(55);}catch(e){}
+    try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();const o=actx.createOscillator(),g=actx.createGain();
+      o.frequency.value=880;o.connect(g);g.connect(actx.destination);const t=actx.currentTime;
+      g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.25,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+.16);
+      o.start(t);o.stop(t+.17);}catch(e){}
+  }
+  // The one entry point. force=true (manual/programmatic) bypasses the anti-double-scan debounce.
+  function feed(raw,fmt,force){
+    const c=classify(raw,fmt); if(!c.code) return null;
+    const now=Date.now();
+    if(!force && c.code===lastCode && (now-lastAt)<DEBOUNCE){lastAt=now;return null;}
+    lastCode=c.code; lastAt=now;
+    let it=items.find(x=>x.code===c.code);
+    if(it){it.count++;}
+    else{
+      let desc="";
+      if(c.kind==="sku" && window.wmLabelsLookup){const cat=window.wmLabelsLookup(c.code);if(cat)desc=cat.desc||"";}
+      it={code:c.code,kind:c.kind,desc,count:1,fmt:String(fmt||"").toLowerCase(),t:new Date().toISOString()};
+      items.unshift(it);
+    }
+    save();render(it.code);cue();
+    status("✓ "+c.code+" · "+labelKind(c.kind)+" · ×"+it.count);
+    return it;
+  }
+  window.wmScanFeed=feed;   // spine hook: other workflows can inject codes here
+
+  function render(flashCode){
+    $("scanCount").textContent=items.reduce((s,x)=>s+x.count,0);
+    const host=$("scanList");
+    if(!items.length){host.innerHTML='<div class="empty">Nothing scanned yet.</div>';return;}
+    host.innerHTML=items.map((x,i)=>'<div class="scanrow'+(x.code===flashCode?" flash":"")+'">'
+      +'<span class="kind '+x.kind+'">'+labelKind(x.kind)+'</span>'
+      +'<div class="body"><div class="code">'+esc(x.code)+'</div>'
+      +'<input class="dsc" data-i="'+i+'" placeholder="'+(x.kind==="product"?"product name (optional)":"name")+'" value="'+escA(x.desc||"")+'"></div>'
+      +'<div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><span class="cnt">'+x.count+'</span><button data-i="'+i+'" data-d="1">+</button></div>'
+      +'<button class="del" data-i="'+i+'" data-act="rm">✕</button></div>').join("");
+  }
+  $("scanList").addEventListener("click",e=>{
+    const btn=e.target.closest("button");if(!btn)return;const i=+btn.dataset.i;if(!items[i])return;
+    if(btn.dataset.act==="rm"){items.splice(i,1);save();render();return;}
+    if(btn.dataset.d){items[i].count=Math.max(1,items[i].count+(+btn.dataset.d));save();render();}
+  });
+  $("scanList").addEventListener("input",e=>{if(e.target.matches("input.dsc")){const i=+e.target.dataset.i;if(items[i]){items[i].desc=e.target.value;save();}}});
+
+  /* ----- camera engines ----- */
+  function stop(){if(engine){try{engine.stop();}catch(e){}engine=null;}stage.classList.remove("live");toggleBtn.classList.remove("live");toggleBtn.innerHTML="&#128247; Start camera";}
+  window.wmScanStop=stop;
+  async function startNative(){
+    const want=["code_128","code_39","ean_13","ean_8","upc_a","upc_e","itf","codabar"];
+    let use=want;
+    try{const sup=await window.BarcodeDetector.getSupportedFormats();use=want.filter(f=>sup.includes(f));}catch(e){}
+    const det=new window.BarcodeDetector(use.length?{formats:use}:undefined);
+    const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}});
+    video.srcObject=stream;await video.play();
+    let running=true,busy=false;
+    async function tick(){
+      if(!running)return;
+      if(!busy){busy=true;try{const codes=await det.detect(video);if(codes&&codes.length)feed(codes[0].rawValue,codes[0].format);}catch(e){}busy=false;}
+      if(running)requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+    return {stop(){running=false;stream.getTracks().forEach(t=>t.stop());video.srcObject=null;}};
+  }
+  function loadZX(){return new Promise((res,rej)=>{if(window.ZXing)return res();const s=document.createElement("script");
+    s.src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js";s.onload=()=>res();s.onerror=()=>rej(new Error("couldn't load the scanner library"));document.head.appendChild(s);});}
+  async function startZXing(){
+    await loadZX();
+    const F=ZXing.BarcodeFormat, hints=new Map();
+    hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[F.CODE_128,F.CODE_39,F.EAN_13,F.EAN_8,F.UPC_A,F.UPC_E,F.ITF,F.CODABAR]);
+    hints.set(ZXing.DecodeHintType.TRY_HARDER,true);
+    const reader=new ZXing.BrowserMultiFormatReader(hints);
+    const zxName=n=>{try{return Object.keys(F).find(k=>F[k]===n)||"";}catch(e){return "";}};
+    await reader.decodeFromConstraints({video:{facingMode:{ideal:"environment"}}},video,(result)=>{if(result)feed(result.getText(),zxName(result.getBarcodeFormat()));});
+    return {stop(){try{reader.reset();}catch(e){}}};
+  }
+  async function start(){
+    if(engine){stop();return;}
+    status("Starting camera…");stage.classList.add("live");
+    try{
+      if("BarcodeDetector" in window){try{engine=await startNative();}catch(e){engine=await startZXing();}}
+      else{engine=await startZXing();}
+      toggleBtn.classList.add("live");toggleBtn.innerHTML="⏹ Stop camera";
+      status("Scanning… hold a barcode steady in view.");
+    }catch(e){stage.classList.remove("live");status("Camera unavailable: "+((e&&e.message)||e)+". Type the code below instead.",true);}
+  }
+  toggleBtn.addEventListener("click",start);
+
+  /* ----- manual entry ----- */
+  function manualAdd(){const el=$("scanManual"),v=el.value.trim();if(!v)return;feed(v,"",true);el.value="";el.focus();}
+  $("scanAdd").addEventListener("click",manualAdd);
+  $("scanManual").addEventListener("keydown",e=>{if(e.key==="Enter")manualAdd();});
+
+  /* ----- export / routing ----- */
+  function csv(){let s="Code,Type,Name,Count,Scanned\n";items.forEach(x=>{s+='"'+x.code+'","'+labelKind(x.kind)+'","'+String(x.desc||"").replace(/"/g,'""')+'",'+x.count+',"'+x.t+'"\n';});return s;}
+  $("scanCopy").addEventListener("click",()=>{if(!items.length){status("Nothing to copy.");return;}navigator.clipboard.writeText(csv()).then(()=>status("📋 Copied "+items.length+" line(s)."));});
+  $("scanCSV").addEventListener("click",()=>{if(!items.length){status("Nothing to export.");return;}const b=new Blob([csv()],{type:"text/csv"}),u=URL.createObjectURL(b),a=document.createElement("a");a.href=u;a.download="worldmarket_scan_"+new Date().toISOString().slice(0,10)+".csv";a.click();URL.revokeObjectURL(u);});
+  $("scanClear").addEventListener("click",()=>{if(!items.length)return;if(!confirm("Clear all "+items.length+" scanned line(s)?"))return;items=[];save();render();status("Cleared.");});
+  $("scanToLabels").addEventListener("click",()=>{
+    const skus=items.filter(x=>x.kind==="sku");
+    if(!skus.length){status("No pick-ticket SKUs to send (product UPCs stay here).",true);return;}
+    if(!window.wmLabelsAddSku){status("Labels tab unavailable.",true);return;}
+    let added=0,dup=0;skus.forEach(x=>{const r=window.wmLabelsAddSku(x.code,x.desc);added+=r.added;dup+=r.dup;});
+    status("✓ Added "+added+" SKU"+(added===1?"":"s")+" to Labels"+(dup?" ("+dup+" already there)":"")+".");
+    if(added)showTab("labels");
+  });
+
+  render();
 })();
 </script>
 </body>
