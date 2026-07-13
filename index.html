@@ -398,7 +398,7 @@ function showTab(name){
         const photoctl=template==="photo"
           ?'<div class="photoctl"><span class="lbl">Photo</span><div class="thumb'+(r.img?'':' empty')+'"'+(r.img?' style="background-image:url('+"'"+escq(r.img)+"'"+')"':'')+'>'+(r.img?'':'no img')+'</div><label class="pill sm">'+(r.img?'Replace':'Add photo')+'<input type="file" accept="image/*" data-i="'+i+'"></label>'+(r.img?'<button class="pill sm" data-i="'+i+'" data-act="imgclear">Clear</button>':'')+'</div>'
           :'';
-        return '<div class="strip'+(r.done?' isdone':'')+'"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div><button class="pill sm dtog'+(r.done?' on':'')+'" data-i="'+i+'" data-act="done">'+(r.done?'✓ Printed':'Mark printed')+'</button></div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div></div><div class="field"><span class="lbl">Behind</span><div class="stepper"><button data-i="'+i+'" data-bd="-1">&minus;</button><input type="number" min="0" class="bdinput" value="'+Math.max(0,intOf(r.behind))+'" data-i="'+i+'"><button data-i="'+i+'" data-bd="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="dup">Duplicate</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'"><button class="pill sm" data-i="'+i+'" data-act="voicedate">🎤 Say date</button>'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
+        return '<div class="strip'+(r.done?' isdone':'')+'"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div><button class="pill sm dtog'+(r.done?' on':'')+'" data-i="'+i+'" data-act="done">'+(r.done?'✓ Printed':'Mark printed')+'</button></div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div><button class="pill sm" data-i="'+i+'" data-act="voiceqty" title="Say the quantity">🎤 Say qty</button></div><div class="field"><span class="lbl">Behind</span><div class="stepper"><button data-i="'+i+'" data-bd="-1">&minus;</button><input type="number" min="0" class="bdinput" value="'+Math.max(0,intOf(r.behind))+'" data-i="'+i+'"><button data-i="'+i+'" data-bd="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="dup">Duplicate</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'"><button class="pill sm" data-i="'+i+'" data-act="voicedate">🎤 Say date</button>'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
       }).join("");
     }
     const none=rows.length===0;
@@ -416,6 +416,7 @@ function showTab(name){
     if(btn.dataset.act==="imgclear"){rows[i].img="";persist();render();return;}
     if(btn.dataset.act==="done"){rows[i].done=!rows[i].done;rows[i].sel=false;persist();render();return;}
     if(btn.dataset.act==="voicedate"){voiceDate(i);return;}
+    if(btn.dataset.act==="voiceqty"){voiceQty(i);return;}
     if(btn.dataset.bd){rows[i].behind=Math.max(0,intOf(rows[i].behind)+(+btn.dataset.bd));persist();render();return;}
     if(btn.dataset.d){rows[i].perBox=Math.max(0,intOf(rows[i].perBox)+(+btn.dataset.d));persist();render();maybeApply(i);}
   });
@@ -461,6 +462,10 @@ function showTab(name){
     t=t.replace(/\b(twenty|thirty)\s+(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth)\b/g,(m,a,b)=>((a==="twenty"?20:30)+({first:1,second:2,third:3,fourth:4,fifth:5,sixth:6,seventh:7,eighth:8,ninth:9}[b])));
     Object.keys(ord).forEach(k=>{t=t.replace(new RegExp("\\b"+k+"\\b","g"),ord[k]);});
     t=t.replace(/\b(twenty|thirty)\s+(one|two|three|four|five|six|seven|eight|nine)\b/g,(m,a,b)=>((a==="twenty"?20:30)+ones[b]));
+    // higher tens (40-99) so spoken pack sizes like "forty eight" -> 48 also work
+    const tens={forty:40,fifty:50,sixty:60,seventy:70,eighty:80,ninety:90};
+    t=t.replace(/\b(forty|fifty|sixty|seventy|eighty|ninety)\s+(one|two|three|four|five|six|seven|eight|nine)\b/g,(m,a,b)=>tens[a]+ones[b]);
+    t=t.replace(/\b(forty|fifty|sixty|seventy|eighty|ninety)\b/g,(m,a)=>tens[a]);
     const card={twenty:20,thirty:30,nineteen:19,eighteen:18,seventeen:17,sixteen:16,fifteen:15,fourteen:14,thirteen:13,twelve:12,eleven:11,ten:10,nine:9,eight:8,seven:7,six:6,five:5,four:4,three:3,two:2,one:1};
     Object.keys(card).forEach(k=>{t=t.replace(new RegExp("\\b"+k+"\\b","g"),card[k]);});
     return t.replace(/\s+/g," ").trim();
@@ -475,6 +480,20 @@ function showTab(name){
     rc.onresult=ev=>{got=true;const t=ev.results[0][0].transcript;const dr=(typeof extractDate==='function')?extractDate(speechToDigits(t)):{date:null};
       if(dr&&dr.date){rows[i].expiry=dr.date.iso;persist();render();}
       else{render();alert('Heard: "'+t+'"\nCouldn\'t find a date. Try like "August 12 2026".');}};
+    rc.onerror=()=>{render();alert("Microphone error — please allow mic access and try again.");};
+    rc.onend=()=>{if(!got)render();};
+    try{rc.start();}catch(e){render();}
+  }
+  // Speak a quantity, e.g. "twelve" or "twenty four" -> fills Qty / box (reuses the number-word normalizer)
+  function voiceQty(i){
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SR){alert("Voice input isn't supported on this browser.");return;}
+    const rc=new SR();rc.lang='en-US';rc.interimResults=false;rc.maxAlternatives=1;
+    const btn=document.querySelector('button[data-act="voiceqty"][data-i="'+i+'"]');if(btn)btn.textContent='🎤 Listening…';
+    let got=false;
+    rc.onresult=ev=>{got=true;const t=ev.results[0][0].transcript;const m=speechToDigits(t).match(/\d+/);
+      if(m&&rows[i]){rows[i].perBox=Math.max(0,parseInt(m[0],10));persist();render();maybeApply(i);}
+      else{render();alert('Heard: "'+t+'"\nCouldn\'t find a number. Try like "twelve".');}};
     rc.onerror=()=>{render();alert("Microphone error — please allow mic access and try again.");};
     rc.onend=()=>{if(!got)render();};
     try{rc.start();}catch(e){render();}
