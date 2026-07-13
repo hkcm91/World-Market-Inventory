@@ -1304,6 +1304,7 @@ function showTab(name){
     if(!buf.length){list.innerHTML='<div class="scanempty">Nothing scanned yet.</div>';return;}
     list.innerHTML=buf.map((it,i)=>'<div class="scanitem"><span class="code">'+esc(it.sku)+'</span>'
       +'<span class="tag '+(it.known?'ok':'new')+'">'+(it.known?'in stock list':'new')+'</span>'
+      +(it.online?'<span class="tag ok" title="named from an online lookup">&#127760; online</span>':'')
       +expTag(it)
       +'<input class="nm" data-i="'+i+'" value="'+esc(it.name||"")+'" placeholder="Product name">'
       +'<input class="qty" data-i="'+i+'" type="number" min="0" value="'+(it.qty===""||it.qty==null?"":esc(it.qty))+'" title="Qty / box">'
@@ -1325,13 +1326,40 @@ function showTab(name){
     for(const c of cands){if(c&&g(c))return c;}
     return "";
   }
+  // Cataloging a brand-new item by its product barcode: look the UPC/EAN up online.
+  // Open Food Facts is free + CORS-enabled and covers most candy/food this store carries.
+  async function lookupOnline(code){
+    const c=String(code||"").replace(/\D/g,"");
+    if(c.length<8||c.length>14)return null;               // only real product barcodes (not WM's 6-digit SKU)
+    try{
+      const r=await fetch("https://world.openfoodfacts.org/api/v2/product/"+encodeURIComponent(c)+".json?fields=product_name,brands,quantity",{cache:"force-cache"});
+      if(!r.ok)return null;
+      const j=await r.json();
+      if(!j||j.status!==1||!j.product)return null;
+      const p=j.product; let nm=String(p.product_name||"").trim(); if(!nm)return null;
+      const brand=p.brands?String(p.brands).split(",")[0].trim():"";
+      if(brand&&nm.toLowerCase().indexOf(brand.toLowerCase())<0)nm=brand+" "+nm;
+      if(p.quantity)nm=nm+" "+String(p.quantity).trim();
+      return nm.replace(/\s+/g," ").toUpperCase().slice(0,60);   // match the store's label style
+    }catch(e){return null;}
+  }
   function addCode(code,name){
     code=String(code||"").replace(/\s+/g,"").trim(); if(!code)return false;
     const sku=resolveSku(code)||code;                    // map the barcode to a known SKU when we can
     if(buf.some(b=>b.sku===sku)){flash("Already listed: "+sku);return false;}
     const info=lookup(sku);
     buf.unshift({sku,name:String(name||"").trim()||info.name,qty:info.qty,known:info.known}); save(); render();
-    flash(info.known?("✓ "+(info.name||sku)):("scanned "+sku+" — not in stock list; tap ✨ Read box or add a name"));
+    if(info.known){flash("✓ "+(info.name||sku));return true;}
+    if(buf[0].name){return true;}                         // name provided manually — nothing to fetch
+    const dig=String(sku).replace(/\D/g,"");
+    if(dig.length>=8){                                     // product UPC/EAN — try to name it online
+      flash("looking up "+sku+" online…");
+      lookupOnline(sku).then(nm=>{const it=buf.find(b=>b.sku===sku);if(!it)return;
+        if(nm&&!it.name){it.name=nm;it.online=true;save();render();flash("found: "+nm);}
+        else flash(sku+" — not found online; type a name");});
+    }else{
+      flash("scanned "+sku+" — new item; tap ✨ Read box or add a name");   // WM shelf-tag SKU
+    }
     return true;
   }
   // restore the last-used workflow, and re-render when it changes
