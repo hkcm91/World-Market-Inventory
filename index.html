@@ -60,6 +60,9 @@
   .summary{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
   .chip{font-size:14px;padding:7px 13px;border:1px solid var(--line);background:var(--card2);border-radius:999px;color:var(--muted)}
   .chip b{color:var(--ink);font-variant-numeric:tabular-nums}
+  /* Montserrat (OFL) ships with the app — the closest free match to the geometric
+     typeface on World Market's real shelf tags; used by the Shelf talker template */
+  @font-face{font-family:'Montserrat';src:url('fonts/montserrat-var.woff2') format('woff2');font-weight:100 900;font-display:swap}
   /* react on touchend immediately — no 300ms double-tap-zoom wait on any control;
      no text selection on rapid taps either */
   button,input,select,label{touch-action:manipulation}
@@ -202,7 +205,7 @@
 </style>
 </head>
 <body>
-<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.8</span></h1></header>
+<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.9</span></h1></header>
 <div class="tabs">
   <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
   <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
@@ -1084,10 +1087,10 @@ function showTab(name){
     alert("Moved "+added+" item(s) to the Expiry list"+(added<items.length?" ("+(items.length-added)+" already there)":"")+".");
   });
 
-  document.getElementById("downloadBtn").addEventListener("click",async ()=>{if(totals().strips===0)return;await ensureImages(stripList());buildDoc().save("sku_labels.pdf");});
+  document.getElementById("downloadBtn").addEventListener("click",async ()=>{if(totals().strips===0)return;await ensureImages(stripList());await ensureShelfFont();buildDoc().save("sku_labels.pdf");});
   document.getElementById("emailBtn").addEventListener("click",async ()=>{
     const t=totals();if(t.strips===0)return;
-    await ensureImages(stripList());
+    await ensureImages(stripList());await ensureShelfFont();
     const doc=buildDoc(),fname="sku_labels.pdf";
     const subj="Top stock SKU labels ("+t.strips+" labels)";
     const summary=t.strips+" labels \u00b7 "+t.pages+" page"+(t.pages>1?"s":"")+".";
@@ -1104,7 +1107,7 @@ function showTab(name){
     const body=encodeURIComponent("The label PDF ("+fname+") was just downloaded to this device \u2014 please attach it to this email before sending.\n\n"+summary);
     window.location.href="mailto:"+EMAIL_TO+"?subject="+encodeURIComponent(subj)+"&body="+body;
   });
-  document.getElementById("previewBtn").addEventListener("click",async ()=>{document.getElementById("modal").classList.add("open");await ensureImages(stripList());requestAnimationFrame(renderPreview);});
+  document.getElementById("previewBtn").addEventListener("click",async ()=>{document.getElementById("modal").classList.add("open");await ensureImages(stripList());await ensureShelfFont();requestAnimationFrame(renderPreview);});
   document.getElementById("closeModal").addEventListener("click",()=>document.getElementById("modal").classList.remove("open"));
   document.getElementById("modal").addEventListener("click",e=>{if(e.target.id==="modal")e.currentTarget.classList.remove("open");});
 
@@ -1200,7 +1203,9 @@ function showTab(name){
   }
   // Shelf-talker geometry (pt): barcode zone is shared by the canvas renderer and the
   // PDF's vector barcode so they land in exactly the same place.
-  const SHELF={BCW:34,BCM:6,BCY:10};
+  const SHELF={BCW:42,BCH:20,BCM:5};   // barcode: wide and short, like the real tags
+  const SFONT="Montserrat, Helvetica, Arial, sans-serif";
+  function ensureShelfFont(){try{return Promise.all([document.fonts.load("700 16px Montserrat"),document.fonts.load("500 16px Montserrat")]).catch(()=>{});}catch(e){return Promise.resolve();}}
   // Render one shelf talker onto an offscreen canvas at S px per pt (shared by PDF + preview).
   // withBarcode=false leaves the barcode zone empty — the PDF draws it as vector rects
   // instead, so bars stay razor sharp and the label art can compress as JPEG.
@@ -1215,29 +1220,29 @@ function showTab(name){
     const flX=pt(6),flY=pt(9),flW=pt(30),flH=pt(19);
     if(r.country)drawFlag(ctx,flX,flY,flW,flH,r.country);
     if(r.country){
-      ctx.fillStyle="#111";ctx.textAlign="left";ctx.font="bold "+pt(5.6)+"px Helvetica, Arial, sans-serif";
+      ctx.fillStyle="#111";ctx.textAlign="left";ctx.font="700 "+pt(5.6)+"px "+SFONT;
       const cw=wrapCanvas(ctx,String(r.country),pt(36),2);
       cw.forEach((ln,k)=>ctx.fillText(ln,flX,flY+flH+pt(7.5)+k*pt(6.4)));
     }
-    // barcode, right edge
-    const bcW=pt(SHELF.BCW),bcX=W-pt(SHELF.BCM)-bcW,bcY=pt(SHELF.BCY),bcH=H-2*pt(SHELF.BCY);
+    // barcode: wide + short, vertically centered on the right edge
+    const bcW=pt(SHELF.BCW),bcX=W-pt(SHELF.BCM)-bcW,bcH=pt(SHELF.BCH),bcY=(H-bcH)/2;
     if(withBarcode!==false)drawBarcode(ctx,bcX,bcY,bcW,bcH,String(r.sku||""));
     // price block: $ small, dollars huge, cents raised + underlined
     let priceLeft=bcX-pt(6);
     const pm=String(r.price||"").trim().match(/^\$?\s*(\d+)(?:[.,](\d{1,2}))?/);
     if(pm){
       const dollars=pm[1],cents=(pm[2]||"00").padEnd(2,"0");
-      const dFs=pt(34),cFs=pt(12),sFs=pt(10);
+      const dFs=pt(30),cFs=pt(11),sFs=pt(9);
       ctx.fillStyle="#111";
-      ctx.font="bold "+dFs+"px Helvetica, Arial, sans-serif";const dW=ctx.measureText(dollars).width;
-      ctx.font="bold "+cFs+"px Helvetica, Arial, sans-serif";const cW=ctx.measureText(cents).width;
-      ctx.font="bold "+sFs+"px Helvetica, Arial, sans-serif";const sW=ctx.measureText("$").width;
+      ctx.font="700 "+dFs+"px "+SFONT;const dW=ctx.measureText(dollars).width;
+      ctx.font="700 "+cFs+"px "+SFONT;const cW=ctx.measureText(cents).width;
+      ctx.font="700 "+sFs+"px "+SFONT;const sW=ctx.measureText("$").width;
       const totW=sW+pt(1)+dW+pt(1.5)+cW;
-      const px=bcX-pt(8)-totW, base=H/2+dFs*0.36;
-      ctx.font="bold "+sFs+"px Helvetica, Arial, sans-serif";ctx.fillText("$",px,base-dFs*0.72+sFs*0.72);
-      ctx.font="bold "+dFs+"px Helvetica, Arial, sans-serif";ctx.fillText(dollars,px+sW+pt(1),base);
+      const px=bcX-pt(7)-totW, base=H/2+dFs*0.36;
+      ctx.font="700 "+sFs+"px "+SFONT;ctx.fillText("$",px,base-dFs*0.72+sFs*0.72);
+      ctx.font="700 "+dFs+"px "+SFONT;ctx.fillText(dollars,px+sW+pt(1),base);
       const cx0=px+sW+pt(1)+dW+pt(1.5),cTop=base-dFs*0.72;
-      ctx.font="bold "+cFs+"px Helvetica, Arial, sans-serif";ctx.fillText(cents,cx0,cTop+cFs*0.72);
+      ctx.font="700 "+cFs+"px "+SFONT;ctx.fillText(cents,cx0,cTop+cFs*0.72);
       ctx.fillRect(cx0,cTop+cFs*0.72+pt(1.5),cW,pt(0.8));
       priceLeft=px-pt(6);
     }
@@ -1246,19 +1251,24 @@ function showTab(name){
     const nx=pt(48),nMaxW=priceLeft-nx;
     if(nMaxW>pt(20)){
       const nameTxt=String(r.desc||("SKU "+r.sku)),words=nameTxt.split(/\s+/).filter(Boolean);
-      const font=fs=>"bold "+fs+"px Helvetica, Arial, sans-serif";
+      const font=fs=>"700 "+fs+"px "+SFONT;
+      const codesTxt=[String(r.sku||""),String(r.codes||"")].filter(Boolean).join("; ");
+      const codesH=codesTxt?pt(8.5):0, avail=H-pt(12)-codesH;   // room for the name block
       let nFs=pt(8),lines=[];
       const fitsWords=fs=>{ctx.font=font(fs);return words.every(wd=>ctx.measureText(wd).width<=nMaxW);};
-      while(nFs>pt(4.4)&&!fitsWords(nFs))nFs-=pt(0.2);
-      for(;;){ctx.font=font(nFs);lines=wrapCanvas(ctx,nameTxt,nMaxW,9);if(lines.length<=4||nFs<=pt(4.4))break;nFs-=pt(0.2);}
-      if(lines.length>4)lines=wrapCanvas(ctx,nameTxt,nMaxW,4);   // pathological names still cap at 4
+      while(nFs>pt(4.2)&&!fitsWords(nFs))nFs-=pt(0.2);
+      for(;;){
+        ctx.font=font(nFs);lines=wrapCanvas(ctx,nameTxt,nMaxW,9);
+        if((lines.length<=6&&lines.length*nFs*1.16<=avail)||nFs<=pt(4.2))break;
+        nFs-=pt(0.2);
+      }
+      if(lines.length*nFs*1.16>avail)lines=wrapCanvas(ctx,nameTxt,nMaxW,Math.max(1,Math.floor(avail/(nFs*1.16))));
       ctx.fillStyle="#111";ctx.textAlign="left";
-      const lh=nFs*1.16,codesTxt=[String(r.sku||""),String(r.codes||"")].filter(Boolean).join("; ");
-      const codesH=codesTxt?pt(8.5):0,blockH=lines.length*lh+codesH;
-      let ly=Math.max(pt(7),(H-blockH)/2)+nFs*0.8;
+      const lh=nFs*1.16,blockH=lines.length*lh+codesH;
+      let ly=Math.max(pt(6),(H-blockH)/2)+nFs*0.8;
       ctx.font=font(nFs);
       lines.forEach(ln=>{ctx.fillText(ln,nx,ly);ly+=lh;});
-      if(codesTxt){ctx.font=pt(5.4)+"px Helvetica, Arial, sans-serif";ctx.fillStyle="#333";ctx.fillText(codesTxt,nx,ly+pt(0.5));}
+      if(codesTxt){ctx.font="500 "+pt(5.2)+"px "+SFONT;ctx.fillStyle="#333";ctx.fillText(codesTxt,nx,ly+pt(0.5));}
     }
     return shelfCv;
   }
@@ -1282,7 +1292,7 @@ function showTab(name){
         // barcode as vector rects: crisp at any print resolution, tiny in the file
         const pat=code128(String(r.sku||""));
         if(pat){
-          const bw=SHELF.BCW,bx=x+L.SW-SHELF.BCM-bw,by=yt+SHELF.BCY,bh=L.SH-2*SHELF.BCY;
+          const bw=SHELF.BCW,bx=x+L.SW-SHELF.BCM-bw,bh=SHELF.BCH,by=yt+(L.SH-bh)/2;
           const modules=[...pat].reduce((s,c)=>s+ +c,0),mw=bw/modules;let cx=bx;
           doc.setFillColor(17,17,17);
           for(let k=0;k<pat.length;k++){const span=+pat[k]*mw;if(k%2===0)doc.rect(cx,by,span,bh,"F");cx+=span;}
