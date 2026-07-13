@@ -278,7 +278,7 @@
       <label class="wflabel" for="scanExp">Expires</label>
       <input id="scanExp" type="date">
     </div>
-    <p class="note" style="margin-top:8px">Pick a workflow, then scan barcodes off <b>pick tickets</b> or <b>product boxes</b>. Each scan looks up the SKU so you can see what&rsquo;s in your stock list, its name and qty/box, before <b>Import</b> sends the batch into that workflow. No camera? Type or paste a code below.</p>
+    <p class="note" style="margin-top:8px">Pick a workflow, then <b>scan a barcode</b>, or point at a box/shelf tag and tap <b>&#10024; Read box</b> &mdash; it reads the text and guesses the <b>SKU</b>, <b>name</b>, <b>qty</b> and <b>expiry</b> to pre-fill for you (review before importing). No camera? Type or paste a code below.</p>
     <div class="cam" id="scanCam">
       <video id="scanVideo" playsinline muted></video>
       <div class="reticle"></div>
@@ -288,6 +288,8 @@
     <div class="scanrow">
       <button class="pill" id="scanCamBtn" style="cursor:pointer">&#128247; Start camera</button>
       <button class="pill" id="scanFlip" style="cursor:pointer;display:none">Flip</button>
+      <button class="pill" id="scanTorch" style="cursor:pointer;display:none">&#128294; Light</button>
+      <button class="pill" id="scanOCR" style="cursor:pointer;background:var(--accent2);color:#fff;border-color:var(--accent2)">&#10024; Read box</button>
     </div>
     <div class="scanrow">
       <input id="scanCode" inputmode="numeric" placeholder="SKU / barcode" autocomplete="off">
@@ -777,14 +779,16 @@ function showTab(name){
       const desc=String(it.desc||it.name||"").trim();
       const qtyGiven=(it.perBox!==undefined&&it.perBox!=="");
       const perBox=qtyGiven?Math.max(0,intOf(it.perBox)):(cat.perBox!==undefined?cat.perBox:12);
+      const exp=String(it.expiry||"").trim();
       const existing=rows.find(r=>r.sku===sku);          // de-dupe: update the SKU we already have
       if(existing){
         if(qtyGiven)existing.perBox=perBox;
         if(desc)existing.desc=desc;
+        if(exp)existing.expiry=exp;
         if(!existing.img&&cat.img)existing.img=cat.img;
         updated++;
       }else{
-        rows.push({sku,desc:desc||cat.desc||"",perBox,expiry:"",img:cat.img||"",done:false,behind:0,copies:1});added++;
+        rows.push({sku,desc:desc||cat.desc||"",perBox,expiry:exp,img:cat.img||"",done:false,behind:0,copies:1});added++;
       }});
     if(added+updated){persist();render();}
     return {added,updated};
@@ -1300,10 +1304,12 @@ function showTab(name){
     if(!buf.length){list.innerHTML='<div class="scanempty">Nothing scanned yet.</div>';return;}
     list.innerHTML=buf.map((it,i)=>'<div class="scanitem"><span class="code">'+esc(it.sku)+'</span>'
       +'<span class="tag '+(it.known?'ok':'new')+'">'+(it.known?'in stock list':'new')+'</span>'
+      +expTag(it)
       +'<input class="nm" data-i="'+i+'" value="'+esc(it.name||"")+'" placeholder="Product name">'
       +'<input class="qty" data-i="'+i+'" type="number" min="0" value="'+(it.qty===""||it.qty==null?"":esc(it.qty))+'" title="Qty / box">'
       +'<button class="rm" data-i="'+i+'" title="Remove">&#10005;</button></div>').join("");
   }
+  function expTag(it){if(!it.exp)return"";const d=new Date(it.exp+"T00:00:00");const s=isNaN(d)?it.exp:d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"});return '<span class="tag ok" title="expires">&#9203; '+esc(s)+'</span>';}
   function flash(msg){$("scanHud").textContent=msg||"";}
   function addCode(code,name){
     code=String(code||"").replace(/\s+/g,"").trim(); if(!code)return false;
@@ -1325,7 +1331,7 @@ function showTab(name){
     const w=wf(); if(w==="preview"||!buf.length)return;
     const dest=WF[w].dest;
     if(dest==="labels"&&window.wmLabelsAddRows){
-      const r=window.wmLabelsAddRows(buf.map(b=>({sku:b.sku,name:b.name,perBox:b.qty})));
+      const r=window.wmLabelsAddRows(buf.map(b=>({sku:b.sku,name:b.name,perBox:b.qty,expiry:b.exp})));
       buf=[];save();render();
       alert("Top Stock Inventory: "+r.added+" added"+(r.updated?(", "+r.updated+" updated (already on the list)"):"")+".");
       if(r.added||r.updated)showTab("labels");
@@ -1346,7 +1352,7 @@ function showTab(name){
   $("scanClear").addEventListener("click",()=>{if(buf.length&&confirm("Clear the scanned list?")){buf=[];save();render();}});
 
   /* ----- live camera scanning (native BarcodeDetector; manual entry always works) ----- */
-  let stream=null,scanning=false,detector=null,facing="environment",lastCode="",lastAt=0,timer=0;
+  let stream=null,scanning=false,detector=null,facing="environment",lastCode="",lastAt=0,timer=0,torchTrack=null,torchOn=false;
   const video=$("scanVideo"),cam=$("scanCam");
   const supported=()=>("BarcodeDetector" in window);
   async function ensureDetector(){if(detector)return detector;if(!supported())return null;try{const f=await window.BarcodeDetector.getSupportedFormats();detector=new window.BarcodeDetector({formats:f});}catch(e){detector=null;}return detector;}
@@ -1355,30 +1361,129 @@ function showTab(name){
   async function loop(){
     if(!scanning)return;
     try{if(detector){const codes=await detector.detect(video);if(codes&&codes.length)onCode(codes[0].rawValue);}}catch(e){}
-    if(scanning)timer=setTimeout(loop,250);
+    if(scanning)timer=setTimeout(loop,140);
   }
   async function start(){
     if(scanning)return;
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){alert("Camera isn't available on this browser — type or paste codes instead.");return;}
     $("scanCamBtn").disabled=true;
     try{
-      stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing},audio:false});
+      // Small shelf-tag / product barcodes need sharp, detailed frames: ask for the rear camera
+      // at high resolution with continuous autofocus, falling back if the device won't honor it.
+      const tries=[
+        {facingMode:{ideal:facing},width:{ideal:1920},height:{ideal:1080},focusMode:{ideal:"continuous"}},
+        {facingMode:{ideal:facing},width:{ideal:1280},height:{ideal:720}},
+        {facingMode:facing}
+      ];
+      stream=null;
+      for(let i=0;i<tries.length;i++){
+        try{stream=await navigator.mediaDevices.getUserMedia({video:tries[i],audio:false});break;}
+        catch(err){if(i===tries.length-1)throw err;}
+      }
       video.srcObject=stream;await video.play();
       cam.classList.add("on");scanning=true;
       $("scanCamBtn").innerHTML="&#9632; Stop camera";$("scanFlip").style.display="";
+      try{
+        const track=stream.getVideoTracks()[0];
+        const caps=track.getCapabilities?track.getCapabilities():{};
+        if(caps.focusMode&&caps.focusMode.indexOf&&caps.focusMode.indexOf("continuous")>=0){try{await track.applyConstraints({advanced:[{focusMode:"continuous"}]});}catch(e){}}
+        torchTrack=caps.torch?track:null;torchOn=false;
+        $("scanTorch").innerHTML="&#128294; Light";$("scanTorch").style.display=torchTrack?"":"none";
+      }catch(e){$("scanTorch").style.display="none";}
       const d=await ensureDetector();
-      if(d){flash("scanning…");loop();}else{flash("no decoder — type codes below");}
+      if(d){flash("point a barcode at the box");loop();}else{flash("no decoder — type codes below");}
     }catch(e){alert("Camera blocked: "+(e&&e.name?e.name:"error")+". Allow camera access, or type codes.");cam.classList.remove("on");}
     finally{$("scanCamBtn").disabled=false;}
   }
   function stop(){
     scanning=false;if(timer){clearTimeout(timer);timer=0;}
+    if(torchTrack){try{torchTrack.applyConstraints({advanced:[{torch:false}]});}catch(e){}torchTrack=null;}
+    torchOn=false;$("scanTorch").innerHTML="&#128294; Light";$("scanTorch").style.display="none";
     if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
     video.srcObject=null;cam.classList.remove("on");
     $("scanCamBtn").innerHTML="&#128247; Start camera";$("scanFlip").style.display="none";flash("");
   }
   $("scanCamBtn").addEventListener("click",()=>scanning?stop():start());
   $("scanFlip").addEventListener("click",async()=>{facing=facing==="environment"?"user":"environment";stop();await start();});
+  $("scanTorch").addEventListener("click",async()=>{if(!torchTrack)return;torchOn=!torchOn;try{await torchTrack.applyConstraints({advanced:[{torch:torchOn}]});$("scanTorch").innerHTML=torchOn?"&#128294; On":"&#128294; Light";}catch(e){}});
+
+  /* ----- Smart read: OCR a box / shelf tag and guess SKU · name · qty · expiry ----- */
+  let _tess=null;
+  function loadTesseract(){
+    if(window.Tesseract)return Promise.resolve(window.Tesseract);
+    if(_tess)return _tess;
+    _tess=new Promise((res,rej)=>{
+      const s=document.createElement("script");
+      s.src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+      s.onload=()=>window.Tesseract?res(window.Tesseract):rej(new Error("reader unavailable"));
+      s.onerror=()=>rej(new Error("could not load the reader (offline?)"));
+      document.head.appendChild(s);
+    });
+    return _tess;
+  }
+  function captureFrame(){
+    const vw=video.videoWidth||1280,vh=video.videoHeight||720;
+    const maxW=1024,s=Math.min(1,maxW/vw),w=Math.round(vw*s),h=Math.round(vh*s);
+    const cv=document.createElement("canvas");cv.width=w;cv.height=h;
+    cv.getContext("2d").drawImage(video,0,0,w,h);
+    return cv;
+  }
+  // Heuristics: pull fields out of raw OCR text. SKU + name are primary; qty + expiry best-effort.
+  function parseBox(text){
+    const raw=String(text||"");
+    const lines=raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    const nums=raw.match(/\d+/g)||[];
+    let sku="";
+    let m=raw.match(/\bSKU\D{0,4}(\d{5,6})\b/i); if(m)sku=m[1];
+    if(!sku)sku=nums.find(n=>n.length===6)||nums.find(n=>n.length===5)||"";
+    let qty="";
+    m=raw.match(/(\d{1,3})\s*(?:\/|per)\s*(?:box|bx|cs|case)/i)||raw.match(/(?:qty|case of|pack of|count)\D{0,4}(\d{1,3})/i)||raw.match(/\b(\d{1,3})\s*(?:ct|count|pk|pack)\b/i);
+    if(m)qty=m[1];
+    let exp="";
+    try{const dr=(typeof extractDate==="function")?extractDate(raw):null;if(dr&&dr.date)exp=dr.date.iso;}catch(e){}
+    const cand=lines.filter(l=>{
+      if(l.length<3)return false;
+      if(/^\$?\d/.test(l))return false;
+      if(/^(SKU|UPC|QTY|EXP|BEST|USE\s*BY|LOT|BB)\b/i.test(l))return false;
+      const letters=(l.match(/[A-Za-z]/g)||[]).length;
+      return letters>=3 && letters>=l.length*0.5;
+    }).sort((a,b)=>((b.match(/[A-Za-z]/g)||[]).length)-((a.match(/[A-Za-z]/g)||[]).length));
+    const name=cand.length?cand[0].replace(/\s{2,}/g," ").slice(0,60):"";
+    return {sku,name,qty,exp};
+  }
+  function stageFields(f){
+    const sku=String(f.sku||"").replace(/\s+/g,"").trim();
+    if(!sku){
+      if(f.name)$("scanName").value=f.name;
+      flash("no SKU found — type it");
+      alert("Couldn't read a SKU.\nRead: "+(f.name||"(no name)")+(f.qty?(" · qty "+f.qty):"")+(f.exp?(" · exp "+f.exp):"")+"\n\nType the SKU and tap Add.");
+      $("scanCode").focus();
+      return false;
+    }
+    if(buf.some(b=>b.sku===sku)){flash("already listed: "+sku);return false;}
+    const info=lookup(sku);
+    buf.unshift({sku,name:(f.name||"").trim()||info.name,qty:(f.qty||info.qty||""),exp:f.exp||"",known:info.known});
+    try{navigator.vibrate&&navigator.vibrate(30);}catch(e){}beep();
+    save();render();flash("read "+sku);
+    return true;
+  }
+  async function smartRead(){
+    if(!scanning){alert("Start the camera first, then hold it over the box or shelf tag and tap Read box.");return;}
+    const btn=$("scanOCR"),label=btn.innerHTML;
+    btn.disabled=true;btn.innerHTML="Reading…";flash("reading the box… (first time downloads the reader)");
+    try{
+      const T=await loadTesseract();
+      const res=await T.recognize(captureFrame(),"eng");
+      const text=(res&&res.data&&res.data.text)||"";
+      const f=parseBox(text);
+      if(!f.sku&&!f.name){alert("Couldn't read anything usable.\nGet closer, hold steady, and make sure the text is sharp and well lit.");flash("nothing read — try again");}
+      else stageFields(f);
+    }catch(e){
+      alert("Smart read couldn't run. The first use needs an internet connection to load the reader.\n("+(e&&e.message?e.message:"error")+")");
+      flash("");
+    }finally{btn.disabled=false;btn.innerHTML=label;}
+  }
+  $("scanOCR").addEventListener("click",smartRead);
   window.wmScanOnTab=function(active){if(!active)stop();};   // showTab stops the camera when you leave Scan
   window.addEventListener("pagehide",stop);
   if(!supported()){$("scanPh").innerHTML='Live scanning needs Chrome/Edge on Android (or another Chromium browser).<br>You can still <b>type or paste</b> codes below.';}
