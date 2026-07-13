@@ -1249,17 +1249,6 @@ function showTab(name){
     // like the real tags: no ellipsis) + "SKU; codes" line under it
     const nx=pt(48),nMaxW=priceLeft-nx;
     if(nMaxW>pt(20)){
-      // tiny SKU/codes line runs VERTICALLY alongside the price — exactly like the
-      // real tags — which frees the whole tag height for a big product name
-      const codesTxt=[String(r.sku||""),String(r.codes||"")].filter(Boolean).join("; ");
-      let nameRight=priceLeft-pt(4);
-      if(codesTxt){
-        ctx.font="500 "+pt(4.4)+"px "+SFONT;ctx.fillStyle="#444";ctx.textAlign="left";
-        const cvW=Math.min(ctx.measureText(codesTxt).width,H-pt(8));
-        const codesX=priceLeft-pt(4);
-        ctx.save();ctx.translate(codesX,H/2+cvW/2);ctx.rotate(-Math.PI/2);ctx.fillText(codesTxt,0,0);ctx.restore();
-        nameRight=codesX-pt(7);
-      }
       // the size/weight prints on its own line, like the real tags
       const nameRaw=String(r.desc||("SKU "+r.sku));
       const sm=nameRaw.match(/(\d+(?:\.\d+)?)\s*(oz|z|lbs?|g|kg|ml|l|ct|pk|pcs?|pack|count)\b\.?\s*$/i);
@@ -1267,23 +1256,27 @@ function showTab(name){
       if(sm&&sm.index>0){sizeTxt=sm[0].trim();nameTxt=nameRaw.slice(0,sm.index).trim();}
       const words=nameTxt.split(/\s+/).filter(Boolean);
       const font=fs=>"700 "+fs+"px "+SFONT;
-      const nW=nameRight-nx, avail=H-pt(10);
-      let nFs=pt(9),lines=[];
+      const codesTxt=[String(r.sku||""),String(r.codes||"")].filter(Boolean).join("; ");
+      const gap=codesTxt?pt(5):0,codesH=codesTxt?pt(6):0;
+      const nW=priceLeft-pt(4)-nx, avail=H-pt(10)-gap-codesH;
+      let nFs=pt(8.5),lines=[];
       const fitsWords=fs=>{ctx.font=font(fs);return words.every(wd=>ctx.measureText(wd).width<=nW);};
       while(nFs>pt(4.2)&&!fitsWords(nFs))nFs-=pt(0.2);
       const extra=sizeTxt?1:0;
       for(;;){
         ctx.font=font(nFs);lines=wrapCanvas(ctx,nameTxt,nW,9);
-        if(((lines.length+extra)<=6&&(lines.length+extra)*nFs*1.08<=avail)||nFs<=pt(4.2))break;
+        if(((lines.length+extra)<=6&&(lines.length+extra)*nFs*1.1<=avail)||nFs<=pt(4.2))break;
         nFs-=pt(0.2);
       }
-      if((lines.length+extra)*nFs*1.08>avail)lines=wrapCanvas(ctx,nameTxt,nW,Math.max(1,Math.floor(avail/(nFs*1.08))-extra));
+      if((lines.length+extra)*nFs*1.1>avail)lines=wrapCanvas(ctx,nameTxt,nW,Math.max(1,Math.floor(avail/(nFs*1.1))-extra));
       if(sizeTxt)lines=lines.concat([sizeTxt]);
       ctx.fillStyle="#111";ctx.textAlign="left";
-      const lh=nFs*1.08,blockH=lines.length*lh;
+      const lh=nFs*1.1,blockH=lines.length*lh+gap+codesH;
       let ly=Math.max(pt(5),(H-blockH)/2)+nFs*0.8;
       ctx.font=font(nFs);
       lines.forEach(ln=>{ctx.fillText(ln,nx,ly);ly+=lh;});
+      // small SKU/codes line, clearly separated below the name block
+      if(codesTxt){ctx.font="500 "+pt(4.8)+"px "+SFONT;ctx.fillStyle="#444";ctx.fillText(codesTxt,nx,ly+gap-pt(1));}
     }
     return shelfCv;
   }
