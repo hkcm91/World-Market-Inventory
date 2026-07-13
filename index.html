@@ -132,12 +132,12 @@
 <body>
 <header><h1>World Market Inventory &middot; Store 071</h1></header>
 <div class="tabs">
-  <button class="tab active" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
-  <button class="tab" id="tab-labels" onclick="showTab('labels')">Labels</button>
+  <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
+  <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
 </div>
 
 <!-- ===================== EXPIRY TAB ===================== -->
-<div class="tabpage show" id="page-expiry"><div class="wrap">
+<div class="tabpage" id="page-expiry"><div class="wrap">
   <div class="card">
     <div class="row">
       <input id="cmd" type="text" placeholder='Say or type: "654178 Korean candy box expires Aug 29"'>
@@ -164,7 +164,7 @@
 </div></div>
 
 <!-- ===================== LABELS TAB ===================== -->
-<div class="tabpage" id="page-labels"><div class="wrap">
+<div class="tabpage show" id="page-labels"><div class="wrap">
   <div class="summary" id="lsummary"></div>
   <div class="tplrow">
     <span class="tpllabel">Template</span>
@@ -191,7 +191,7 @@
 </div></div>
 
 <div class="applybar" id="applyBar"><span id="applyMsg"></span><button id="applyAll">Apply to all</button><button id="applyDismiss">Dismiss</button></div>
-<div class="lbar" id="lbar" style="display:none">
+<div class="lbar" id="lbar" style="display:flex">
   <button id="previewBtn">Preview</button>
   <button class="primary" id="downloadBtn">Download</button>
   <button id="emailBtn">Email</button>
