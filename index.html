@@ -119,9 +119,6 @@
   .photoctl label.pill{cursor:pointer;margin:0}
   .photoctl label.pill input{display:none}
   /* ---- print selection / done status ---- */
-  .fchips{display:flex;gap:9px;margin-bottom:14px;flex-wrap:wrap}
-  .fchip{border:1px solid var(--line);background:var(--card2);color:var(--muted);border-radius:999px;padding:10px 16px;font-size:15px;font-weight:800;cursor:pointer;min-height:44px}
-  .fchip.active{background:var(--accent2);color:#fff;border-color:var(--accent2)}
   .striphead{display:flex;align-items:center;gap:12px;margin-bottom:2px}
   .striphead .sku{flex:1}
   .selwrap{display:inline-flex;align-items:center}
@@ -172,6 +169,7 @@
   <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
   <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
   <button class="tab" id="tab-scan" onclick="showTab('scan')">Scan</button>
+  <button class="tab" id="tab-archive" onclick="showTab('archive')">Archive</button>
 </div>
 
 <!-- ===================== EXPIRY TAB ===================== -->
@@ -213,7 +211,6 @@
     <input id="imgImportIn" type="file" style="display:none">
     <input id="dataIn" type="file" accept="application/json,.json" style="display:none">
   </div>
-  <div class="fchips" id="lfilter"></div>
   <div class="selbar" id="selbar">
     <span class="selinfo" id="selInfo"></span>
     <span class="selbtns">
@@ -232,7 +229,7 @@
     </div>
     <button class="send" id="fAdd">Add strip</button>
   </div>
-  <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each row is one label (one per box). <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Switch to the <b>Photo</b> template to print a product image on each label &mdash; photos load automatically for items World Market carries online; add your own for the rest with <b>Add photo</b>. Tap <b>&#127908; Say date</b> to speak an expiry (e.g. &ldquo;August twelfth twenty twenty six&rdquo;). <b>Check</b> the labels you want, hit Download, then <b>Mark printed</b> &mdash; it takes <b>only the checked ones</b>, moves them straight to <b>Archived</b> and drops them off this list, so the list always shows just what&rsquo;s left to print. Restore anything from Archived whenever you need it again. Set <b>Behind</b> to how many boxes of that SKU sit behind the front one and it auto-adds &ldquo;1 BEHIND&rdquo;, &ldquo;2 BEHIND&rdquo;&hellip; stock-depth labels after it. SKU info (name, qty/box, photo) is remembered, so re-adding a SKU auto-fills. <b>Backup</b> saves everything to a file; <b>Restore</b> brings it back. Everything saves on this device.</p>
+  <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each row is one label (one per box). <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Switch to the <b>Photo</b> template to print a product image on each label &mdash; photos load automatically for items World Market carries online; add your own for the rest with <b>Add photo</b>. Tap <b>&#127908; Say date</b> to speak an expiry (e.g. &ldquo;August twelfth twenty twenty six&rdquo;). <b>Check</b> the labels you want, hit Download, then <b>Mark printed</b> &mdash; it takes <b>only the checked ones</b>, moves them to the <b>Archive</b> tab and drops them off this list, so this list always shows just what&rsquo;s left to print. Restore anything from the Archive tab whenever you need it again. Set <b>Behind</b> to how many boxes of that SKU sit behind the front one and it auto-adds &ldquo;1 BEHIND&rdquo;, &ldquo;2 BEHIND&rdquo;&hellip; stock-depth labels after it. SKU info (name, qty/box, photo) is remembered, so re-adding a SKU auto-fills. <b>Backup</b> saves everything to a file; <b>Restore</b> brings it back. Everything saves on this device.</p>
 </div></div>
 
 <!-- ===================== SCAN TAB ===================== -->
@@ -276,6 +273,13 @@
       <button class="pill" id="scanClear" style="cursor:pointer">Clear list</button>
     </div>
   </div>
+</div></div>
+
+<!-- ===================== ARCHIVE TAB ===================== -->
+<div class="tabpage" id="page-archive"><div class="wrap">
+  <div class="summary" id="asummary"></div>
+  <div id="alist"></div>
+  <p class="note">Labels you <b>Mark printed</b> (or <b>Archive</b>) on the Labels tab land here and drop off that list, so Labels always shows only what still needs printing. <b>&#8617; Restore</b> sends an entry back to Labels to print again &mdash; check several and use the Restore button below to bring back a batch. <b>Remove</b> deletes an entry for good.</p>
 </div></div>
 
 <div class="applybar" id="applyBar"><span id="applyMsg"></span><button id="applyAll">Apply to all</button><button id="applyDismiss">Dismiss</button></div>
@@ -396,11 +400,14 @@ load();render();
 
 /* ================= TABS ================= */
 function showTab(name){
-  ['labels','expiry','scan'].forEach(function(n){
+  ['labels','expiry','scan','archive'].forEach(function(n){
     document.getElementById('tab-'+n).classList.toggle('active',name===n);
     document.getElementById('page-'+n).classList.toggle('show',name===n);
   });
-  document.getElementById('lbar').style.display = name==='labels' ? 'flex' : 'none';
+  // bottom bar: label actions on Labels, Restore/Remove on Archive, hidden elsewhere
+  document.getElementById('lbar').style.display = (name==='labels'||name==='archive') ? 'flex' : 'none';
+  document.getElementById('lbarMain').style.display = name==='labels' ? 'contents' : 'none';
+  document.getElementById('lbarArc').style.display = name==='archive' ? 'contents' : 'none';
   if(name!=='labels') document.getElementById('applyBar').classList.remove('show');
   if(window.wmScanOnTab) window.wmScanOnTab(name==='scan');   // start/stop the camera with the tab
 }
@@ -445,7 +452,6 @@ function showTab(name){
   const KEY="wm_labels_v1", TPLKEY="wm_label_tpl", CATKEY="wm_catalog_v1", ARCKEY="wm_labels_archive_v1";
   let rows=[];
   let template=(localStorage.getItem(TPLKEY)==="photo")?"photo":"text";
-  let filter="all";                                  // all (= still to print) | archived
   const imgCache=new Map();   // src -> HTMLImageElement | null(failed)
   // SKU catalog: remembers desc / qty-per-box / image per SKU so you never re-enter a SKU's info
   let catalog={}; try{catalog=JSON.parse(localStorage.getItem(CATKEY))||{};}catch(e){catalog={};}
@@ -498,30 +504,27 @@ function showTab(name){
   function escq(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
   function render(){
     const t=totals();
-    document.getElementById("lsummary").innerHTML='<span class="chip"><b>'+t.skus+'</b> SKUs</span><span class="chip"><b>'+t.strips+'</b> labels</span><span class="chip"><b>'+t.printCount+'</b> to print</span><span class="chip"><b>'+archive.length+'</b> archived</span>';
+    document.getElementById("lsummary").innerHTML='<span class="chip"><b>'+t.skus+'</b> SKUs</span><span class="chip"><b>'+t.strips+'</b> labels</span><span class="chip"><b>'+t.printCount+'</b> to print</span>';
     document.getElementById("tplText").classList.toggle("active",template==="text");
     document.getElementById("tplPhoto").classList.toggle("active",template==="photo");
-    document.getElementById("lfilter").innerHTML=[["all","To print "+t.strips],["archived","Archived "+archive.length]].map(f=>'<button class="fchip'+(filter===f[0]?' active':'')+'" data-f="'+f[0]+'">'+f[1]+'</button>').join("");
+    // The Archive tab always mirrors the archive — its count lives on the tab itself.
+    document.getElementById("tab-archive").textContent="Archive"+(archive.length?" ("+archive.length+")":"");
+    document.getElementById("asummary").innerHTML='<span class="chip"><b>'+archive.length+'</b> archived</span><span class="chip"><b>'+archive.filter(r=>r.printed).length+'</b> printed</span>';
+    renderArchiveInto(document.getElementById("alist"));
     const list=document.getElementById("llist");
-    // Archived view: swap the action bar to Restore/Remove and render the archive instead of the active rows.
-    const arcView=(filter==="archived");
-    document.getElementById("lbarMain").style.display=arcView?"none":"contents";
-    document.getElementById("lbarArc").style.display=arcView?"contents":"none";
-    document.getElementById("selbar").style.display=arcView?"none":"flex";
-    if(arcView){renderArchiveInto(list);return;}
     // Selection summary — the checked set is what Download/Mark printed/Archive act on.
     document.getElementById("selInfo").innerHTML = t.sel
       ? '<b>'+t.sel+'</b> selected &middot; '+t.pages+' PDF sheet'+(t.pages>1?'s':'')+' &middot; used for <b>Download</b>, <b>Mark printed</b> &amp; <b>Archive</b>'
       : 'No selection &mdash; <b>Download</b> prints all '+t.strips+' ('+t.pages+' sheet'+(t.pages>1?'s':'')+'). Tap &ldquo;Select next '+PER_PAGE+'&rdquo; to build sheets.';
     const shown=rows.map((r,i)=>({r,i}));
-    if(rows.length===0){list.innerHTML='<div class="card empty">Nothing left to print &mdash; all done! Printed labels live under <b>Archived</b>.</div>';}
+    if(rows.length===0){list.innerHTML='<div class="card empty">Nothing left to print &mdash; all done! Printed labels live in the <b>Archive</b> tab.</div>';}
     else if(shown.length===0){list.innerHTML='<div class="card empty">Nothing left to print.</div>';}
     else{
       list.innerHTML=shown.map(({r,i})=>{
         const photoctl=template==="photo"
           ?'<div class="photoctl"><span class="lbl">Photo</span><div class="thumb'+(r.img?'':' empty')+'"'+(r.img?' style="background-image:url('+"'"+escq(r.img)+"'"+')"':'')+'>'+(r.img?'':'no img')+'</div><label class="pill sm">'+(r.img?'Replace':'Add photo')+'<input type="file" accept="image/*" data-i="'+i+'"></label>'+(r.img?'<button class="pill sm" data-i="'+i+'" data-act="imgclear">Clear</button>':'')+'</div>'
           :'';
-        return '<div class="strip"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div><button class="pill sm dtog" data-i="'+i+'" data-act="done" title="Move straight to Archived">&#10003; Printed &rarr; Archive</button></div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div><button class="pill sm" data-i="'+i+'" data-act="voiceqty" title="Say the quantity">🎤 Say qty</button></div><div class="field"><span class="lbl">Behind</span><div class="stepper"><button data-i="'+i+'" data-bd="-1">&minus;</button><input type="number" min="0" class="bdinput" value="'+Math.max(0,intOf(r.behind))+'" data-i="'+i+'"><button data-i="'+i+'" data-bd="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="dup">Duplicate</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'"><button class="pill sm" data-i="'+i+'" data-act="voicedate">🎤 Say date</button>'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
+        return '<div class="strip"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div><button class="pill sm dtog" data-i="'+i+'" data-act="done" title="Mark this label printed — moves it to the Archive tab">Mark printed</button></div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div><button class="pill sm" data-i="'+i+'" data-act="voiceqty" title="Say the quantity">🎤 Say qty</button></div><div class="field"><span class="lbl">Behind</span><div class="stepper"><button data-i="'+i+'" data-bd="-1">&minus;</button><input type="number" min="0" class="bdinput" value="'+Math.max(0,intOf(r.behind))+'" data-i="'+i+'"><button data-i="'+i+'" data-bd="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="dup">Duplicate</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'"><button class="pill sm" data-i="'+i+'" data-act="voicedate">🎤 Say date</button>'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
       }).join("");
     }
     const none=rows.length===0;
@@ -533,34 +536,39 @@ function showTab(name){
   }
   document.getElementById("llist").addEventListener("click",e=>{
     const btn=e.target.closest("button");if(!btn)return;const i=+btn.dataset.i;
-    if(btn.dataset.act==="arcrestore"){restoreArchived([+btn.dataset.a]);return;}
-    if(btn.dataset.act==="arcremove"){const a=+btn.dataset.a;if(confirm("Permanently remove this archived entry? This can't be undone.")){archive.splice(a,1);saveArchive();render();}return;}
     if(btn.dataset.act==="dup"){rows.splice(i+1,0,Object.assign({},rows[i],{sel:false,done:false}));persist();render();return;}
     if(btn.dataset.act==="rm"){rows.splice(i,1);persist();render();return;}
     if(btn.dataset.act==="expclear"){rows[i].expiry="";persist();render();return;}
     if(btn.dataset.act==="imgclear"){rows[i].img="";persist();render();return;}
-    if(btn.dataset.act==="done"){archiveRows([i],true);toast("Archived as printed — restore it anytime from Archived");return;}
+    if(btn.dataset.act==="done"){archiveRows([i],true);toast("Marked printed &rarr; moved to the Archive tab");return;}
     if(btn.dataset.act==="voicedate"){voiceDate(i);return;}
     if(btn.dataset.act==="voiceqty"){voiceQty(i);return;}
     if(btn.dataset.bd){rows[i].behind=Math.max(0,intOf(rows[i].behind)+(+btn.dataset.bd));persist();render();return;}
     if(btn.dataset.d){rows[i].perBox=Math.max(0,intOf(rows[i].perBox)+(+btn.dataset.d));persist();render();maybeApply(i);}
   });
   document.getElementById("llist").addEventListener("change",e=>{
-    if(e.target.matches('input.arcbox')){archive[+e.target.dataset.a].sel=e.target.checked;return;}
     if(e.target.matches('input.selbox')){rows[+e.target.dataset.i].sel=e.target.checked;render();return;}
     if(e.target.matches('input.bdinput')){const i=+e.target.dataset.i;rows[i].behind=Math.max(0,intOf(e.target.value));persist();render();return;}
     if(e.target.matches('input[type=number]')){const i=+e.target.dataset.i;rows[i].perBox=Math.max(0,intOf(e.target.value));persist();render();maybeApply(i);}
     if(e.target.matches('input[type=date]')){const i=+e.target.dataset.i;rows[i].expiry=e.target.value||"";persist();render();}
     if(e.target.matches('input[type=file]')){const i=+e.target.dataset.i,f=e.target.files&&e.target.files[0];if(!f)return;fileToThumb(f).then(uri=>{rows[i].img=uri;persist();render();}).catch(()=>alert("Couldn't read that image."));}
   });
-  document.getElementById("lfilter").addEventListener("click",e=>{const b=e.target.closest("[data-f]");if(b){filter=b.dataset.f;render();}});
+  // The Archive tab's list: restore / remove single entries, check boxes for batch actions.
+  document.getElementById("alist").addEventListener("click",e=>{
+    const btn=e.target.closest("button");if(!btn)return;
+    if(btn.dataset.act==="arcrestore"){restoreArchived([+btn.dataset.a]);return;}
+    if(btn.dataset.act==="arcremove"){const a=+btn.dataset.a;if(confirm("Permanently remove this archived entry? This can't be undone.")){archive.splice(a,1);saveArchive();render();}return;}
+  });
+  document.getElementById("alist").addEventListener("change",e=>{
+    if(e.target.matches('input.arcbox')){archive[+e.target.dataset.a].sel=e.target.checked;}
+  });
   // Mark printed acts ONLY on the checked labels — never the whole list — and moves
   // them straight to the archive, so the list always shows just what's left to print.
   document.getElementById("markBtn").addEventListener("click",()=>{
     const idx=rows.map((r,i)=>i).filter(i=>rows[i].sel);
     if(!idx.length){alert("Check the labels you printed first (the box on the left of each one). Mark printed only takes the checked ones — it never grabs the whole list.");return;}
     archiveRows(idx,true);
-    toast(idx.length+" label"+(idx.length>1?"s":"")+" marked printed &rarr; moved to Archived");
+    toast(idx.length+" label"+(idx.length>1?"s":"")+" marked printed &rarr; moved to the Archive tab");
   });
 
   /* ---- Archive: stash selected entries out of the active list, restore them later ---- */
@@ -579,7 +587,7 @@ function showTab(name){
     clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove("show"),2800);
   }
   function renderArchiveInto(list){
-    if(!archive.length){list.innerHTML='<div class="card empty">Nothing archived yet. Check one or more entries in a list above and tap <b>&#128230; Archive</b> to stash them here for later.</div>';return;}
+    if(!archive.length){list.innerHTML='<div class="card empty">Nothing archived yet. On the <b>Labels</b> tab, check labels and tap <b>&#10003; Mark printed</b> (or <b>&#128230; Archive</b>) &mdash; they land here and drop off that list.</div>';return;}
     list.innerHTML=archive.map((r,a)=>{
       const when=r.archivedAt?new Date(r.archivedAt).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'';
       return '<div class="strip arc"><div class="striphead"><label class="selwrap"><input type="checkbox" class="arcbox" data-a="'+a+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div>'
@@ -593,7 +601,7 @@ function showTab(name){
     const idx=rows.map((r,i)=>i).filter(i=>rows[i].sel);
     if(!idx.length){alert("Check the entries you want to archive first (the box on the left of each label).");return;}
     archiveRows(idx,false);
-    toast(idx.length+" moved to Archived &mdash; restore them anytime");
+    toast(idx.length+" moved to the Archive tab &mdash; restore them anytime");
   }
   function restoreArchived(indices){
     const set=new Set(indices);
@@ -601,9 +609,8 @@ function showTab(name){
     if(!back.length)return;
     back.forEach(r=>{rows.push({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:false,behind:Math.max(0,intOf(r.behind))});});
     archive=archive.filter((r,a)=>!set.has(a));
-    persist();saveArchive();
-    if(!archive.length)filter="all";                 // nothing left to show in the archived view
-    render();
+    persist();saveArchive();render();
+    toast(back.length+" restored &rarr; back on the Labels tab");
   }
   document.getElementById("archiveBtn").addEventListener("click",archiveSelected);
   document.getElementById("unarchiveBtn").addEventListener("click",()=>{
