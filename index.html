@@ -1311,11 +1311,28 @@ function showTab(name){
   }
   function expTag(it){if(!it.exp)return"";const d=new Date(it.exp+"T00:00:00");const s=isNaN(d)?it.exp:d.toLocaleDateString(undefined,{month:"short",day:"numeric",year:"2-digit"});return '<span class="tag ok" title="expires">&#9203; '+esc(s)+'</span>';}
   function flash(msg){$("scanHud").textContent=msg||"";}
+  // A scanned barcode isn't always the exact 6-digit SKU: shelf tags pad with leading zeros
+  // or add a prefix, so try a few forms against the stock list before giving up.
+  // (A product's own UPC is a different number entirely and won't match — use Read box for those.)
+  function resolveSku(raw){
+    const g=window.wmCatalogGet; const s=String(raw||"").trim();
+    if(!g)return "";
+    const cands=[s];
+    const digits=s.replace(/\D/g,"");
+    if(digits&&digits!==s)cands.push(digits);
+    const nolead=digits.replace(/^0+/,""); if(nolead&&nolead!==digits)cands.push(nolead);
+    if(digits.length>6&&digits.length<=8)cands.push(digits.slice(-6));
+    for(const c of cands){if(c&&g(c))return c;}
+    return "";
+  }
   function addCode(code,name){
     code=String(code||"").replace(/\s+/g,"").trim(); if(!code)return false;
-    if(buf.some(b=>b.sku===code)){flash("Already listed: "+code);return false;}
-    const info=lookup(code);
-    buf.unshift({sku:code,name:String(name||"").trim()||info.name,qty:info.qty,known:info.known}); save(); render(); return true;
+    const sku=resolveSku(code)||code;                    // map the barcode to a known SKU when we can
+    if(buf.some(b=>b.sku===sku)){flash("Already listed: "+sku);return false;}
+    const info=lookup(sku);
+    buf.unshift({sku,name:String(name||"").trim()||info.name,qty:info.qty,known:info.known}); save(); render();
+    flash(info.known?("✓ "+(info.name||sku)):("scanned "+sku+" — not in stock list; tap ✨ Read box or add a name"));
+    return true;
   }
   // restore the last-used workflow, and re-render when it changes
   try{const w=localStorage.getItem(WFKEY);if(w&&WF[w])$("scanWorkflow").value=w;}catch(e){}
@@ -1357,7 +1374,7 @@ function showTab(name){
   const supported=()=>("BarcodeDetector" in window);
   async function ensureDetector(){if(detector)return detector;if(!supported())return null;try{const f=await window.BarcodeDetector.getSupportedFormats();detector=new window.BarcodeDetector({formats:f});}catch(e){detector=null;}return detector;}
   function beep(){try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const ac=beep._a||(beep._a=new C());const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=1200;g.gain.value=.05;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+.07);}catch(e){}}
-  function onCode(v){v=String(v||"").replace(/\s+/g,"");if(!v)return;const now=Date.now();if(v===lastCode&&now-lastAt<2500)return;lastCode=v;lastAt=now;try{navigator.vibrate&&navigator.vibrate(30);}catch(e){}beep();if(addCode(v,""))flash("+ "+v);}
+  function onCode(v){v=String(v||"").replace(/\s+/g,"");if(!v)return;const now=Date.now();if(v===lastCode&&now-lastAt<2500)return;lastCode=v;lastAt=now;try{navigator.vibrate&&navigator.vibrate(30);}catch(e){}beep();addCode(v,"");}
   async function loop(){
     if(!scanning)return;
     try{if(detector){const codes=await detector.detect(video);if(codes&&codes.length)onCode(codes[0].rawValue);}}catch(e){}
