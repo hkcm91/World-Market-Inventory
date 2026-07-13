@@ -60,6 +60,8 @@
   .summary{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
   .chip{font-size:14px;padding:7px 13px;border:1px solid var(--line);background:var(--card2);border-radius:999px;color:var(--muted)}
   .chip b{color:var(--ink);font-variant-numeric:tabular-nums}
+  /* react on touchend immediately — no 300ms double-tap-zoom wait on any control */
+  button,input,select,label{touch-action:manipulation}
   .strip{position:relative;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 14px 16px;margin-bottom:12px;box-shadow:var(--shadow)}
   .strip .sku{font-weight:800;font-size:26px;letter-spacing:.01em;font-variant-numeric:tabular-nums;word-break:break-all;color:var(--ink)}
   .strip .desc{color:var(--muted);font-size:15px;margin-top:4px;min-height:16px}
@@ -77,6 +79,13 @@
   .expline{display:flex;align-items:center;gap:10px;margin-top:12px;padding-top:12px;border-top:1px dashed var(--line);flex-wrap:wrap}
   .expline .lbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800}
   .expinput{border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:16px;color:var(--ink);background:var(--card2);font-family:inherit}
+  /* phone layout: two clean columns of controls, full-width row actions */
+  @media (max-width:520px){
+    .controls{display:grid;grid-template-columns:auto auto;justify-content:space-between}
+    .rowacts{grid-column:1/-1;display:flex}
+    .rowacts .pill{flex:1;height:46px}
+    .expline .expinput{flex:1;min-width:150px}
+  }
   .add-toggle{margin:14px 0;width:100%;padding:15px;border:1px dashed var(--accent-l);background:transparent;border-radius:12px;color:var(--accent-l);font-weight:800;font-size:16px;min-height:52px}
   .add-form{display:none;gap:12px;flex-direction:column;margin:14px 0;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px}
   .add-form.open{display:flex}
@@ -502,20 +511,32 @@ function showTab(name){
   // expand each label into itself plus its "1 BEHIND".."N BEHIND" stock-depth labels
   function expand(list){const out=[];list.forEach(r=>{out.push(r);const n=Math.max(0,intOf(r.behind));for(let k=1;k<=n;k++)out.push({isBehind:true,num:k,of:n,sku:r.sku,perBox:r.perBox});});return out;}
   function escq(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
-  function render(){
+  // Cheap refresh: counts, selection summary and button states only. Editing a qty or
+  // ticking a checkbox calls this instead of render() — rebuilding all 300 strips on
+  // every tap is what made the page feel slow (and stole focus from the keyboard).
+  function renderCounts(){
     const t=totals();
     document.getElementById("lsummary").innerHTML='<span class="chip"><b>'+t.skus+'</b> SKUs</span><span class="chip"><b>'+t.strips+'</b> labels</span><span class="chip"><b>'+t.printCount+'</b> to print</span>';
-    document.getElementById("tplText").classList.toggle("active",template==="text");
-    document.getElementById("tplPhoto").classList.toggle("active",template==="photo");
     // The Archive tab always mirrors the archive — its count lives on the tab itself.
     document.getElementById("tab-archive").textContent="Archive"+(archive.length?" ("+archive.length+")":"");
     document.getElementById("asummary").innerHTML='<span class="chip"><b>'+archive.length+'</b> archived</span><span class="chip"><b>'+archive.filter(r=>r.printed).length+'</b> printed</span>';
-    renderArchiveInto(document.getElementById("alist"));
-    const list=document.getElementById("llist");
     // Selection summary — the checked set is what Download/Mark printed/Archive act on.
     document.getElementById("selInfo").innerHTML = t.sel
       ? '<b>'+t.sel+'</b> selected &middot; '+t.pages+' PDF sheet'+(t.pages>1?'s':'')+' &middot; used for <b>Download</b>, <b>Mark printed</b> &amp; <b>Archive</b>'
       : 'No selection &mdash; <b>Download</b> prints all '+t.strips+' ('+t.pages+' sheet'+(t.pages>1?'s':'')+'). Tap &ldquo;Select next '+PER_PAGE+'&rdquo; to build sheets.';
+    const none=rows.length===0;
+    document.getElementById("downloadBtn").disabled=none;
+    document.getElementById("previewBtn").disabled=none;
+    document.getElementById("emailBtn").disabled=none;
+    document.getElementById("markBtn").disabled=none;
+    document.getElementById("moveBtn").disabled=(t.dated===0);
+  }
+  function render(){
+    renderCounts();
+    document.getElementById("tplText").classList.toggle("active",template==="text");
+    document.getElementById("tplPhoto").classList.toggle("active",template==="photo");
+    renderArchiveInto(document.getElementById("alist"));
+    const list=document.getElementById("llist");
     const shown=rows.map((r,i)=>({r,i}));
     if(rows.length===0){list.innerHTML='<div class="card empty">Nothing left to print &mdash; all done! Printed labels live in the <b>Archive</b> tab.</div>';}
     else if(shown.length===0){list.innerHTML='<div class="card empty">Nothing left to print.</div>';}
@@ -527,12 +548,6 @@ function showTab(name){
         return '<div class="strip"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div><button class="pill sm dtog" data-i="'+i+'" data-act="done" title="Mark this label printed — moves it to the Archive tab">Mark printed</button></div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div><button class="pill sm" data-i="'+i+'" data-act="voiceqty" title="Say the quantity">🎤 Say qty</button></div><div class="field"><span class="lbl">Behind</span><div class="stepper"><button data-i="'+i+'" data-bd="-1">&minus;</button><input type="number" min="0" class="bdinput" value="'+Math.max(0,intOf(r.behind))+'" data-i="'+i+'"><button data-i="'+i+'" data-bd="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="dup">Duplicate</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'"><button class="pill sm" data-i="'+i+'" data-act="voicedate">🎤 Say date</button>'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
       }).join("");
     }
-    const none=rows.length===0;
-    document.getElementById("downloadBtn").disabled=none;
-    document.getElementById("previewBtn").disabled=none;
-    document.getElementById("emailBtn").disabled=none;
-    document.getElementById("markBtn").disabled=none;
-    document.getElementById("moveBtn").disabled=(t.dated===0);
   }
   document.getElementById("llist").addEventListener("click",e=>{
     const btn=e.target.closest("button");if(!btn)return;const i=+btn.dataset.i;
@@ -543,13 +558,25 @@ function showTab(name){
     if(btn.dataset.act==="done"){archiveRows([i],true);toast("Marked printed &rarr; moved to the Archive tab");return;}
     if(btn.dataset.act==="voicedate"){voiceDate(i);return;}
     if(btn.dataset.act==="voiceqty"){voiceQty(i);return;}
-    if(btn.dataset.bd){rows[i].behind=Math.max(0,intOf(rows[i].behind)+(+btn.dataset.bd));persist();render();return;}
-    if(btn.dataset.d){rows[i].perBox=Math.max(0,intOf(rows[i].perBox)+(+btn.dataset.d));persist();render();maybeApply(i);}
+    // steppers update their own input in place — no full list rebuild per tap
+    if(btn.dataset.bd){const v=Math.max(0,intOf(rows[i].behind)+(+btn.dataset.bd));rows[i].behind=v;const inp=btn.parentElement.querySelector("input");if(inp)inp.value=v;persist();renderCounts();return;}
+    if(btn.dataset.d){const v=Math.max(0,intOf(rows[i].perBox)+(+btn.dataset.d));rows[i].perBox=v;const inp=btn.parentElement.querySelector("input");if(inp)inp.value=v;persist();renderCounts();maybeApply(i);}
+  });
+  // Save while typing — a qty typed and never blurred used to be lost on refresh.
+  // No re-render here: rebuilding the list mid-keystroke would close the keyboard.
+  document.getElementById("llist").addEventListener("input",e=>{
+    if(e.target.matches('input.bdinput')){rows[+e.target.dataset.i].behind=Math.max(0,intOf(e.target.value));persist();renderCounts();return;}
+    if(e.target.matches('input[type=number]')){rows[+e.target.dataset.i].perBox=Math.max(0,intOf(e.target.value));persist();renderCounts();}
+  });
+  // Tapping a qty field selects the whole number, so typing replaces it — no
+  // fiddling with a caret that landed between the digits.
+  document.getElementById("llist").addEventListener("focusin",e=>{
+    if(e.target.matches('input[type=number]'))setTimeout(()=>{try{e.target.select();}catch(err){}},0);
   });
   document.getElementById("llist").addEventListener("change",e=>{
-    if(e.target.matches('input.selbox')){rows[+e.target.dataset.i].sel=e.target.checked;render();return;}
-    if(e.target.matches('input.bdinput')){const i=+e.target.dataset.i;rows[i].behind=Math.max(0,intOf(e.target.value));persist();render();return;}
-    if(e.target.matches('input[type=number]')){const i=+e.target.dataset.i;rows[i].perBox=Math.max(0,intOf(e.target.value));persist();render();maybeApply(i);}
+    if(e.target.matches('input.selbox')){rows[+e.target.dataset.i].sel=e.target.checked;renderCounts();return;}
+    if(e.target.matches('input.bdinput')){const i=+e.target.dataset.i;rows[i].behind=Math.max(0,intOf(e.target.value));e.target.value=rows[i].behind;persist();renderCounts();return;}
+    if(e.target.matches('input[type=number]')){const i=+e.target.dataset.i;rows[i].perBox=Math.max(0,intOf(e.target.value));e.target.value=rows[i].perBox;persist();renderCounts();maybeApply(i);}
     if(e.target.matches('input[type=date]')){const i=+e.target.dataset.i;rows[i].expiry=e.target.value||"";persist();render();}
     if(e.target.matches('input[type=file]')){const i=+e.target.dataset.i,f=e.target.files&&e.target.files[0];if(!f)return;fileToThumb(f).then(uri=>{rows[i].img=uri;persist();render();}).catch(()=>alert("Couldn't read that image."));}
   });
@@ -698,32 +725,53 @@ function showTab(name){
     return t.replace(/\s+/g," ").trim();
   }
   // Speak an expiry date, e.g. "August twelfth twenty twenty six" -> fills the date (reuses the expiry parser)
-  function voiceDate(i){
+  // One-shot voice capture. Keeps interim (partial) results too — recognition often
+  // never delivers a "final" result for short utterances like "twelve", which is why
+  // the mic felt like a coin flip. Shows "Speak now" only once the mic is actually
+  // open, and buzzes the phone as the cue.
+  function listenOnce(btn,idleLabel,cb){
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){alert("Voice input isn't supported on this browser.");return;}
-    const rc=new SR();rc.lang='en-US';rc.interimResults=false;rc.maxAlternatives=1;
-    const btn=document.querySelector('button[data-act="voicedate"][data-i="'+i+'"]');if(btn)btn.textContent='🎤 Listening…';
-    let got=false;
-    rc.onresult=ev=>{got=true;const t=ev.results[0][0].transcript;const dr=(typeof extractDate==='function')?extractDate(speechToDigits(t)):{date:null};
-      if(dr&&dr.date){rows[i].expiry=dr.date.iso;persist();render();}
-      else{render();alert('Heard: "'+t+'"\nCouldn\'t find a date. Try like "August 12 2026".');}};
-    rc.onerror=()=>{render();alert("Microphone error — please allow mic access and try again.");};
-    rc.onend=()=>{if(!got)render();};
-    try{rc.start();}catch(e){render();}
+    const rc=new SR();rc.lang='en-US';rc.interimResults=true;rc.maxAlternatives=1;
+    let finalTxt="",interimTxt="",finished=false;
+    const setBtn=t=>{if(btn)btn.textContent=t;};
+    setBtn("🎤 …");
+    const finish=()=>{if(finished)return;finished=true;setBtn(idleLabel);cb((finalTxt||interimTxt).trim());};
+    rc.onaudiostart=()=>{setBtn("🎤 Speak now");if(navigator.vibrate)try{navigator.vibrate(40);}catch(e){}};
+    rc.onresult=ev=>{
+      let f="",it="";
+      for(let k=0;k<ev.results.length;k++){const r=ev.results[k];if(r.isFinal)f+=r[0].transcript+" ";else it+=r[0].transcript+" ";}
+      finalTxt=f.trim();interimTxt=it.trim();
+      const heard=(finalTxt||interimTxt);if(heard)setBtn("🎤 "+heard.slice(0,16));
+      if(finalTxt){try{rc.stop();}catch(e){}}
+    };
+    rc.onerror=ev=>{if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){finished=true;setBtn(idleLabel);alert("Microphone is blocked — allow mic access for this site and try again.");}};
+    rc.onend=finish;
+    setTimeout(()=>{try{rc.stop();}catch(e){}},7000);   // never hang in "Listening" forever
+    try{rc.start();}catch(e){finish();}
+  }
+  function voiceDate(i){
+    const btn=document.querySelector('button[data-act="voicedate"][data-i="'+i+'"]');
+    listenOnce(btn,"🎤 Say date",t=>{
+      if(!rows[i])return;
+      if(!t){toast("Didn't catch that — tap and say the date");return;}
+      const dr=(typeof extractDate==='function')?extractDate(speechToDigits(t)):{date:null};
+      if(dr&&dr.date){rows[i].expiry=dr.date.iso;persist();render();toast("Expiry set: "+dr.date.disp);}
+      else alert('Heard: "'+t+'"\nCouldn\'t find a date. Try like "August 12 2026".');
+    });
   }
   // Speak a quantity, e.g. "twelve" or "twenty four" -> fills Qty / box (reuses the number-word normalizer)
   function voiceQty(i){
-    const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-    if(!SR){alert("Voice input isn't supported on this browser.");return;}
-    const rc=new SR();rc.lang='en-US';rc.interimResults=false;rc.maxAlternatives=1;
-    const btn=document.querySelector('button[data-act="voiceqty"][data-i="'+i+'"]');if(btn)btn.textContent='🎤 Listening…';
-    let got=false;
-    rc.onresult=ev=>{got=true;const t=ev.results[0][0].transcript;const m=speechToDigits(t).match(/\d+/);
-      if(m&&rows[i]){rows[i].perBox=Math.max(0,parseInt(m[0],10));persist();render();maybeApply(i);}
-      else{render();alert('Heard: "'+t+'"\nCouldn\'t find a number. Try like "twelve".');}};
-    rc.onerror=()=>{render();alert("Microphone error — please allow mic access and try again.");};
-    rc.onend=()=>{if(!got)render();};
-    try{rc.start();}catch(e){render();}
+    const btn=document.querySelector('button[data-act="voiceqty"][data-i="'+i+'"]');
+    listenOnce(btn,"🎤 Say qty",t=>{
+      if(!rows[i])return;
+      if(!t){toast("Didn't catch that — tap and say the number");return;}
+      const m=speechToDigits(t).match(/\d+/);
+      if(m){const v=Math.max(0,parseInt(m[0],10));rows[i].perBox=v;
+        const inp=document.querySelector('.stepper input[type=number]:not(.bdinput)[data-i="'+i+'"]');if(inp)inp.value=v;
+        persist();renderCounts();maybeApply(i);toast("Qty/box set to "+v);}
+      else alert('Heard: "'+t+'"\nCouldn\'t find a number. Try like "twelve".');
+    });
   }
   document.getElementById("tplText").addEventListener("click",()=>{template="text";localStorage.setItem(TPLKEY,template);render();});
   document.getElementById("tplPhoto").addEventListener("click",()=>{template="photo";localStorage.setItem(TPLKEY,template);render();});
