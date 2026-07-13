@@ -205,7 +205,7 @@
 </style>
 </head>
 <body>
-<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.11</span></h1></header>
+<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.12</span></h1></header>
 <div class="tabs">
   <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
   <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
@@ -557,16 +557,16 @@ function showTab(name){
   function saveUserPhotos(){try{localStorage.setItem(UPKEY,JSON.stringify(userPhotos));}catch(e){storageAlert();}}
   function saveCatalog(){
     try{
-      const slim={};for(const k in catalog){const c=catalog[k]||{};slim[k]={desc:c.desc||"",perBox:c.perBox,img:keepImg(c.img),price:c.price||"",country:c.country||"",codes:c.codes||"",barcode:c.barcode||""};}
+      const slim={};for(const k in catalog){const c=catalog[k]||{};slim[k]={desc:c.desc||"",perBox:c.perBox,img:keepImg(c.img),price:c.price||"",country:c.country||"",codes:c.codes||"",barcode:c.barcode||"",bay:c.bay||""};}
       localStorage.setItem(CATKEY,JSON.stringify(slim));
     }catch(e){storageAlert();}
   }
   // Archive: entries stashed out of the active list to be restored when relevant again.
   let archive=[]; try{archive=JSON.parse(localStorage.getItem(ARCKEY))||[];}catch(e){archive=[];}
   if(!Array.isArray(archive))archive=[];
-  function cleanArc(r){return {sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:keepImg(r.img),behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",printed:!!r.printed,archivedAt:r.archivedAt||Date.now()};}
+  function cleanArc(r){return {sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:keepImg(r.img),behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||"",printed:!!r.printed,archivedAt:r.archivedAt||Date.now()};}
   function saveArchive(){try{localStorage.setItem(ARCKEY,JSON.stringify(archive.map(cleanArc)));}catch(e){storageAlert();}}
-  function syncCatalog(){rows.forEach(r=>{const c=catalog[r.sku]||{};catalog[r.sku]={desc:r.desc||c.desc||"",perBox:(r.perBox!==undefined&&r.perBox!=="")?intOf(r.perBox):(c.perBox!==undefined?c.perBox:12),img:r.img||c.img||"",price:r.price||c.price||"",country:r.country||c.country||"",codes:r.codes||c.codes||"",barcode:r.barcode||c.barcode||""};});saveCatalog();}
+  function syncCatalog(){rows.forEach(r=>{const c=catalog[r.sku]||{};catalog[r.sku]={desc:r.desc||c.desc||"",perBox:(r.perBox!==undefined&&r.perBox!=="")?intOf(r.perBox):(c.perBox!==undefined?c.perBox:12),img:r.img||c.img||"",price:r.price||c.price||"",country:r.country||c.country||"",codes:r.codes||c.codes||"",barcode:r.barcode||c.barcode||"",bay:r.bay||c.bay||""};});saveCatalog();}
   function catalogGet(sku){return catalog[String(sku)]||null;}
   function intOf(v){return Math.max(0,parseInt(v)||0);}
   function copiesOf(r){return Math.max(1,intOf(r.copies)||1);}
@@ -579,7 +579,7 @@ function showTab(name){
     rows.forEach(r=>{
       const k=r.sku+"|"+(r.expiry||"")+"|"+intOf(r.perBox);
       const hit=seen.get(k);
-      if(hit){hit.copies=copiesOf(hit)+copiesOf(r);hit.behind=Math.max(intOf(hit.behind),intOf(r.behind));if(!hit.img&&r.img)hit.img=r.img;if(!hit.desc&&r.desc)hit.desc=r.desc;if(!hit.price&&r.price)hit.price=r.price;if(!hit.country&&r.country)hit.country=r.country;if(!hit.codes&&r.codes)hit.codes=r.codes;if(!hit.barcode&&r.barcode)hit.barcode=r.barcode;hit.sel=hit.sel||r.sel;}
+      if(hit){hit.copies=copiesOf(hit)+copiesOf(r);hit.behind=Math.max(intOf(hit.behind),intOf(r.behind));if(!hit.img&&r.img)hit.img=r.img;if(!hit.desc&&r.desc)hit.desc=r.desc;if(!hit.price&&r.price)hit.price=r.price;if(!hit.country&&r.country)hit.country=r.country;if(!hit.codes&&r.codes)hit.codes=r.codes;if(!hit.barcode&&r.barcode)hit.barcode=r.barcode;if(!hit.bay&&r.bay)hit.bay=r.bay;hit.sel=hit.sel||r.sel;}
       else{r.copies=copiesOf(r);seen.set(k,r);out.push(r);}
     });
     rows=out;
@@ -587,7 +587,7 @@ function showTab(name){
   function loadRows(){
     let saved=null; try{saved=JSON.parse(localStorage.getItem(KEY));}catch(e){}
     if(Array.isArray(saved)&&(saved.length||archive.length)){
-      rows=saved.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||""}));
+      rows=saved.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||""}));
       // archived SKUs count as present too, so printed-and-archived items don't respawn from the seed
       const present=new Set(rows.map(r=>r.sku));
       archive.forEach(r=>present.add(String(r.sku)));
@@ -609,7 +609,7 @@ function showTab(name){
   }
   // persist a clean projection (drops the transient print-selection flag) and keep the catalog in sync
   function persist(){
-    try{localStorage.setItem(KEY,JSON.stringify(rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:keepImg(r.img),done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:copiesOf(r),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||""}))));}
+    try{localStorage.setItem(KEY,JSON.stringify(rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:keepImg(r.img),done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:copiesOf(r),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||""}))));}
     catch(e){storageAlert();}
     syncCatalog();
   }
@@ -675,7 +675,7 @@ function showTab(name){
           :template==="shelf"
           ?'<div class="shelfctl"><div class="sfield"><span class="lbl">Price $</span><input class="prinput" inputmode="decimal" placeholder="4.79" value="'+escq(r.price||"")+'" data-i="'+i+'"></div><div class="sfield"><span class="lbl">Country</span><input class="ctinput" placeholder="China" list="countryList" value="'+escq(r.country||"")+'" data-i="'+i+'"></div><div class="sfield grow"><span class="lbl">Codes</span><input class="cdinput" placeholder="D23; SNAK02" value="'+escq(r.codes||"")+'" data-i="'+i+'"></div><div class="sfield"><span class="lbl">Barcode</span><input class="bcinput" inputmode="numeric" placeholder="scan &#128247; or type" value="'+escq(r.barcode||"")+'" data-i="'+i+'"></div></div>'
           :'';
-        return '<div class="strip"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+(copiesOf(r)>1?' <span class="xbadge">&times;'+copiesOf(r)+'</span>':'')+'</div><button class="pill sm dtog" data-i="'+i+'" data-act="done" title="Mark this label printed — moves it to the Archive tab">Mark printed</button></div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div><button class="pill sm" data-i="'+i+'" data-act="voiceqty" title="Say the quantity">🎤 Say qty</button></div><div class="field"><span class="lbl">Behind</span><div class="stepper"><button data-i="'+i+'" data-bd="-1">&minus;</button><input type="number" min="0" class="bdinput" value="'+Math.max(0,intOf(r.behind))+'" data-i="'+i+'"><button data-i="'+i+'" data-bd="1">+</button></div></div><div class="field"><span class="lbl">Copies</span><div class="stepper"><button data-i="'+i+'" data-cd="-1">&minus;</button><input type="number" min="1" class="cpinput" value="'+copiesOf(r)+'" data-i="'+i+'"><button data-i="'+i+'" data-cd="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="qw" title="Step through the list from here, qty-first">&#9889; Quick qty</button><button class="pill" data-i="'+i+'" data-act="bscan" title="Scan this product\'s barcode — prints on the shelf talker">&#128247; '+(r.barcode?'&#10003;':'Barcode')+'</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'"><button class="pill sm" data-i="'+i+'" data-act="voicedate">🎤 Say date</button>'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
+        return '<div class="strip"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+(copiesOf(r)>1?' <span class="xbadge">&times;'+copiesOf(r)+'</span>':'')+'</div><button class="pill sm dtog" data-i="'+i+'" data-act="done" title="Mark this label printed — moves it to the Archive tab">Mark printed</button></div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div><button class="pill sm" data-i="'+i+'" data-act="voiceqty" title="Say the quantity">🎤 Say qty</button></div><div class="field"><span class="lbl">Behind</span><div class="stepper"><button data-i="'+i+'" data-bd="-1">&minus;</button><input type="number" min="0" class="bdinput" value="'+Math.max(0,intOf(r.behind))+'" data-i="'+i+'"><button data-i="'+i+'" data-bd="1">+</button></div></div><div class="field"><span class="lbl">Copies</span><div class="stepper"><button data-i="'+i+'" data-cd="-1">&minus;</button><input type="number" min="1" class="cpinput" value="'+copiesOf(r)+'" data-i="'+i+'"><button data-i="'+i+'" data-cd="1">+</button></div></div><div class="field"><span class="lbl">Bay</span><input class="bayinput" placeholder="B12" value="'+escq(r.bay||"")+'" data-i="'+i+'"></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="qw" title="Step through the list from here, qty-first">&#9889; Quick qty</button><button class="pill" data-i="'+i+'" data-act="bscan" title="Scan this product\'s barcode — prints on the shelf talker">&#128247; '+(r.barcode?'&#10003;':'Barcode')+'</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'"><button class="pill sm" data-i="'+i+'" data-act="voicedate">🎤 Say date</button>'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
       }).join("");
     }
   }
@@ -711,6 +711,7 @@ function showTab(name){
     if(e.target.matches('input.ctinput')){rows[+e.target.dataset.i].country=e.target.value.trim();persist();return;}
     if(e.target.matches('input.cdinput')){rows[+e.target.dataset.i].codes=e.target.value.trim();persist();return;}
     if(e.target.matches('input.bcinput')){rows[+e.target.dataset.i].barcode=e.target.value.trim();persist();return;}
+    if(e.target.matches('input.bayinput')){rows[+e.target.dataset.i].bay=e.target.value.trim();persist();return;}
     if(e.target.matches('input[type=number]')){rows[+e.target.dataset.i].perBox=Math.max(0,intOf(e.target.value));persist();renderCounts();}
   });
   // Tapping a qty field selects the whole number, so typing replaces it — no
@@ -785,7 +786,7 @@ function showTab(name){
     const set=new Set(indices);
     const back=archive.filter((r,a)=>set.has(a));
     if(!back.length)return;
-    back.forEach(r=>{rows.push({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||userPhotos[String(r.sku)]||"",done:false,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||""});});
+    back.forEach(r=>{rows.push({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||userPhotos[String(r.sku)]||"",done:false,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||""});});
     mergeDuplicates();
     archive=archive.filter((r,a)=>!set.has(a));
     persist();saveArchive();render();
@@ -820,6 +821,7 @@ function showTab(name){
       const photo=String(it.photo||"").trim();            // World Market image fetched at scan time
       if(photo){try{userPhotos[sku]=photo;saveUserPhotos();}catch(e){}}   // persist it so it survives reload
       const bc=String(it.barcode||"").trim();
+      const bay=String(it.bay||"").trim();
       // de-dupe: a scan of a known SKU or a known product barcode updates that item
       // (and attaches the barcode); anything unknown becomes a NEW listing
       const existing=rows.find(r=>r.sku===sku||(bc&&r.barcode===bc)||(r.barcode&&r.barcode===sku));
@@ -829,9 +831,10 @@ function showTab(name){
         if(exp)existing.expiry=exp;
         if(photo)existing.img=photo; else if(!existing.img&&cat.img)existing.img=cat.img;
         if(bc&&!existing.barcode)existing.barcode=bc;
+        if(bay)existing.bay=bay;
         updated++;
       }else{
-        rows.push({sku,desc:desc||cat.desc||"",perBox,expiry:exp,img:photo||cat.img||"",done:false,behind:0,copies:1,price:cat.price||"",country:cat.country||"",codes:cat.codes||"",barcode:bc||cat.barcode||""});added++;
+        rows.push({sku,desc:desc||cat.desc||"",perBox,expiry:exp,img:photo||cat.img||"",done:false,behind:0,copies:1,price:cat.price||"",country:cat.country||"",codes:cat.codes||"",barcode:bc||cat.barcode||"",bay:bay||cat.bay||""});added++;
       }});
     if(added+updated){persist();render();}
     return {added,updated};
@@ -851,7 +854,7 @@ function showTab(name){
   document.getElementById("selClear").addEventListener("click",()=>{ if(rows.some(r=>r.sel)){rows.forEach(r=>r.sel=false);render();} });
   // Backup / restore the whole labels database (entries + archive + saved SKU catalog) as one JSON file
   document.getElementById("backupBtn").addEventListener("click",()=>{
-    const data={v:2,rows:rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:r.img,behind:Math.max(0,intOf(r.behind)),copies:copiesOf(r),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||""})),archive:archive.map(cleanArc),catalog};
+    const data={v:2,rows:rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:r.img,behind:Math.max(0,intOf(r.behind)),copies:copiesOf(r),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||""})),archive:archive.map(cleanArc),catalog};
     const b=new Blob([JSON.stringify(data)],{type:"application/json"}),u=URL.createObjectURL(b),a=document.createElement("a");
     a.href=u;a.download="worldmarket_labels_backup_"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(u);
   });
@@ -860,7 +863,7 @@ function showTab(name){
     fr.onload=()=>{let d;try{d=JSON.parse(fr.result);}catch(err){alert("That file isn't valid JSON.");return;}
       if(!d||!Array.isArray(d.rows)){alert("That doesn't look like a labels backup.");return;}
       if(!confirm("Replace your current "+rows.length+" labels"+(archive.length?(" and "+archive.length+" archived"):"")+" with the backup ("+d.rows.length+" labels"+(Array.isArray(d.archive)?(", "+d.archive.length+" archived"):"")+")?"))return;
-      rows=d.rows.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||""}));
+      rows=d.rows.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||""}));
       mergeDuplicates();
       if(Array.isArray(d.archive))archive=d.archive.map(cleanArc);
       if(d.catalog&&typeof d.catalog==="object"){catalog=d.catalog;saveCatalog();}
@@ -1698,7 +1701,7 @@ function showTab(name){
     const w=wf(); if(w==="preview"||!buf.length)return;
     const dest=WF[w].dest;
     if(dest==="labels"&&window.wmLabelsAddRows){
-      const r=window.wmLabelsAddRows(buf.map(b=>({sku:b.sku,name:b.name,perBox:b.qty,expiry:b.exp,photo:b.wmImg,barcode:(b.barcode||(/^\d{11,14}$/.test(String(b.sku))?String(b.sku):""))})));
+      const r=window.wmLabelsAddRows(buf.map(b=>({sku:b.sku,name:b.name,perBox:b.qty,expiry:b.exp,photo:b.wmImg,barcode:(b.barcode||(/^\d{11,14}$/.test(String(b.sku))?String(b.sku):"")),bay:b.bay||""})));
       buf=[];save();render();
       alert("Top Stock Inventory: "+r.added+" added"+(r.updated?(", "+r.updated+" updated (already on the list)"):"")+".");
       if(r.added||r.updated)showTab("labels");
