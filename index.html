@@ -109,6 +109,21 @@
   .modal{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
   .modal.open{display:flex}
   .modal-inner{background:var(--card);border:1px solid var(--line);border-radius:14px;width:100%;max-width:660px;height:82vh;display:flex;flex-direction:column;overflow:hidden}
+  /* ---- quick-qty workflow modal ---- */
+  .modal-inner.qw{height:auto;max-height:92vh;max-width:440px}
+  .qwbody{padding:18px 18px 6px}
+  .qwtop{display:flex;gap:14px;align-items:center;margin-bottom:14px}
+  .qwthumb{width:72px;height:72px;border-radius:10px;border:1px solid var(--line);background:var(--card2) no-repeat center/cover;flex:0 0 auto}
+  .qwsku{font-weight:800;font-size:30px;font-variant-numeric:tabular-nums;color:var(--ink);line-height:1.1}
+  .qwdesc{color:var(--muted);font-size:14px;margin-top:4px;line-height:1.35}
+  .qwlbl{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--accent-l);font-weight:800;margin-bottom:6px}
+  .qwrow{display:flex;gap:10px;align-items:center}
+  #qwQty{flex:1;min-width:0;border:2px solid var(--accent);border-radius:12px;background:var(--card2);color:var(--ink);font-size:32px;font-weight:800;text-align:center;padding:10px;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+  #qwQty::-webkit-outer-spin-button,#qwQty::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .qwrow .pill{height:56px;white-space:nowrap;cursor:pointer}
+  .qwacts{display:flex;gap:10px;padding:14px 18px 18px}
+  .qwacts button{flex:1;min-height:56px;border-radius:12px;font-size:17px;font-weight:800;border:1px solid var(--line);background:var(--card2);color:var(--ink);cursor:pointer}
+  .qwacts .qwsave{flex:1.6;background:var(--accent2);border-color:var(--accent2);color:#fff}
   .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
   .modal-head b{font-size:16px}
   .modal-head button{border:none;background:transparent;font-size:24px;color:var(--muted);min-height:auto;padding:4px 8px}
@@ -131,6 +146,7 @@
   .photoctl label.pill input{display:none}
   /* ---- print selection / done status ---- */
   .striphead{display:flex;align-items:center;gap:12px;margin-bottom:2px}
+  .xbadge{display:inline-block;background:var(--accent2);color:#fff;border-radius:999px;padding:2px 10px;font-size:15px;font-weight:800;vertical-align:middle;margin-left:4px}
   .striphead .sku{flex:1}
   .selwrap{display:inline-flex;align-items:center}
   .selbox{width:28px;height:28px;accent-color:var(--accent2);cursor:pointer}
@@ -175,7 +191,7 @@
 </style>
 </head>
 <body>
-<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.3</span></h1></header>
+<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.6</span></h1></header>
 <div class="tabs">
   <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
   <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
@@ -240,7 +256,7 @@
     </div>
     <button class="send" id="fAdd">Add strip</button>
   </div>
-  <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each row is one label (one per box). <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Switch to the <b>Photo</b> template to print a product image on each label &mdash; photos load automatically for items World Market carries online; add your own for the rest with <b>Add photo</b>. Tap <b>&#127908; Say date</b> to speak an expiry (e.g. &ldquo;August twelfth twenty twenty six&rdquo;). <b>Check</b> the labels you want, hit Download, then <b>Mark printed</b> &mdash; it takes <b>only the checked ones</b>, moves them to the <b>Archive</b> tab and drops them off this list, so this list always shows just what&rsquo;s left to print. Restore anything from the Archive tab whenever you need it again. Set <b>Behind</b> to how many boxes of that SKU sit behind the front one and it auto-adds &ldquo;1 BEHIND&rdquo;, &ldquo;2 BEHIND&rdquo;&hellip; stock-depth labels after it. SKU info (name, qty/box, photo) is remembered, so re-adding a SKU auto-fills. <b>Backup</b> saves everything to a file; <b>Restore</b> brings it back. Everything saves on this device.</p>
+  <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each card is one product; <b>Copies</b> (the &times;N badge) is how many of that label print &mdash; duplicates fold into one card automatically. <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Switch to the <b>Photo</b> template to print a product image on each label &mdash; photos load automatically for items World Market carries online; add your own for the rest with <b>Add photo</b>. Tap <b>&#127908; Say date</b> to speak an expiry (e.g. &ldquo;August twelfth twenty twenty six&rdquo;). <b>Check</b> the labels you want, hit Download, then <b>Mark printed</b> &mdash; it takes <b>only the checked ones</b>, moves them to the <b>Archive</b> tab and drops them off this list, so this list always shows just what&rsquo;s left to print. Restore anything from the Archive tab whenever you need it again. Set <b>Behind</b> to how many boxes of that SKU sit behind the front one and it auto-adds &ldquo;1 BEHIND&rdquo;, &ldquo;2 BEHIND&rdquo;&hellip; stock-depth labels after it. SKU info (name, qty/box, photo) is remembered, so re-adding a SKU auto-fills. <b>Backup</b> saves everything to a file; <b>Restore</b> brings it back. Everything saves on this device.</p>
 </div></div>
 
 <!-- ===================== SCAN TAB ===================== -->
@@ -308,6 +324,24 @@
     <button id="arcRemoveBtn">&#128465; Remove</button>
   </span>
 </div>
+
+<!-- Quick-qty workflow: walk the list one label at a time, qty pre-selected,
+     Enter saves & advances, Skip moves on. Opened from ⚡ Quick qty on a card. -->
+<div class="modal" id="qwModal"><div class="modal-inner qw">
+  <div class="modal-head"><b id="qwPos"></b><button id="qwClose">&times;</button></div>
+  <div class="qwbody">
+    <div class="qwtop"><div class="qwthumb" id="qwThumb"></div><div class="qwid"><div class="qwsku" id="qwSku"></div><div class="qwdesc" id="qwDesc"></div></div></div>
+    <div class="qwlbl">Qty / box</div>
+    <div class="qwrow">
+      <input id="qwQty" type="number" inputmode="numeric" min="0">
+      <button class="pill" id="qwMic">&#127908; Say qty</button>
+    </div>
+  </div>
+  <div class="qwacts">
+    <button id="qwSkip">Skip &rarr;</button>
+    <button class="qwsave" id="qwSave">&#10003; Save &amp; next</button>
+  </div>
+</div></div>
 
 <div class="modal" id="modal"><div class="modal-inner">
   <div class="modal-head"><b>Print preview</b><button id="closeModal">&times;</button></div>
@@ -492,21 +526,36 @@ function showTab(name){
   // Archive: entries stashed out of the active list to be restored when relevant again.
   let archive=[]; try{archive=JSON.parse(localStorage.getItem(ARCKEY))||[];}catch(e){archive=[];}
   if(!Array.isArray(archive))archive=[];
-  function cleanArc(r){return {sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:keepImg(r.img),behind:Math.max(0,intOf(r.behind)),printed:!!r.printed,archivedAt:r.archivedAt||Date.now()};}
+  function cleanArc(r){return {sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:keepImg(r.img),behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),printed:!!r.printed,archivedAt:r.archivedAt||Date.now()};}
   function saveArchive(){try{localStorage.setItem(ARCKEY,JSON.stringify(archive.map(cleanArc)));}catch(e){storageAlert();}}
   function syncCatalog(){rows.forEach(r=>{const c=catalog[r.sku]||{};catalog[r.sku]={desc:r.desc||c.desc||"",perBox:(r.perBox!==undefined&&r.perBox!=="")?intOf(r.perBox):(c.perBox!==undefined?c.perBox:12),img:r.img||c.img||""};});saveCatalog();}
   function catalogGet(sku){return catalog[String(sku)]||null;}
   function intOf(v){return Math.max(0,parseInt(v)||0);}
-  function expandSeed(){const out=[];SEED.forEach(s=>{const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)out.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:"",done:false,behind:0});});return out;}
+  function copiesOf(r){return Math.max(1,intOf(r.copies)||1);}
+  function expandSeed(){return SEED.map(s=>({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:"",done:false,behind:0,copies:Math.max(1,s.qty||1)}));}
+  // One card per product: rows with the same SKU/expiry/qty-per-box fold into a single
+  // entry whose `copies` count is how many labels it prints. No more scrolling past
+  // five identical cards — the ×N badge (and the PDF) carries the multiplicity.
+  function mergeDuplicates(){
+    const seen=new Map(),out=[];
+    rows.forEach(r=>{
+      const k=r.sku+"|"+(r.expiry||"")+"|"+intOf(r.perBox);
+      const hit=seen.get(k);
+      if(hit){hit.copies=copiesOf(hit)+copiesOf(r);hit.behind=Math.max(intOf(hit.behind),intOf(r.behind));if(!hit.img&&r.img)hit.img=r.img;if(!hit.desc&&r.desc)hit.desc=r.desc;hit.sel=hit.sel||r.sel;}
+      else{r.copies=copiesOf(r);seen.set(k,r);out.push(r);}
+    });
+    rows=out;
+  }
   function loadRows(){
     let saved=null; try{saved=JSON.parse(localStorage.getItem(KEY));}catch(e){}
     if(Array.isArray(saved)&&(saved.length||archive.length)){
-      rows=saved.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done,behind:Math.max(0,intOf(r.behind))}));
+      rows=saved.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1)}));
       // archived SKUs count as present too, so printed-and-archived items don't respawn from the seed
       const present=new Set(rows.map(r=>r.sku));
       archive.forEach(r=>present.add(String(r.sku)));
-      SEED.forEach(s=>{if(!present.has(String(s.sku))){const n=Math.max(1,s.qty||1);for(let k=0;k<n;k++)rows.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:"",done:false,behind:0});}});
+      SEED.forEach(s=>{if(!present.has(String(s.sku)))rows.push({sku:String(s.sku),desc:s.desc||"",perBox:s.perBox!==undefined?s.perBox:12,expiry:"",img:"",done:false,behind:0,copies:Math.max(1,s.qty||1)});});
     } else rows=expandSeed();
+    mergeDuplicates();                               // old data stored one row per label — fold them
     // photos aren't persisted with the rows (see keepImg) — put hand-added ones back
     rows.forEach(r=>{if(!r.img&&userPhotos[r.sku])r.img=userPhotos[r.sku];});
     sweepPrinted();
@@ -522,7 +571,7 @@ function showTab(name){
   }
   // persist a clean projection (drops the transient print-selection flag) and keep the catalog in sync
   function persist(){
-    try{localStorage.setItem(KEY,JSON.stringify(rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:keepImg(r.img),done:!!r.done,behind:Math.max(0,intOf(r.behind))}))));}
+    try{localStorage.setItem(KEY,JSON.stringify(rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:keepImg(r.img),done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:copiesOf(r)}))));}
     catch(e){storageAlert();}
     syncCatalog();
   }
@@ -543,12 +592,13 @@ function showTab(name){
     return n;
   }
   window.wmLabelsApplyImages=applyImages;   // hook the backend/MCP sync can call
-  function totals(){const strips=rows.length;const skus=new Set(rows.map(r=>r.sku)).size;const dated=rows.filter(r=>r.expiry).length;const sel=rows.filter(r=>r.sel).length;const printCount=expand(printSet()).length;return {skus,strips,dated,sel,printCount,pages:Math.max(1,Math.ceil(Math.max(1,printCount)/PER_PAGE))};}
+  function totals(){const strips=rows.reduce((s,r)=>s+copiesOf(r),0);const skus=new Set(rows.map(r=>r.sku)).size;const dated=rows.filter(r=>r.expiry).length;const sel=rows.filter(r=>r.sel).length;const printCount=expand(printSet()).length;return {skus,strips,dated,sel,printCount,pages:Math.max(1,Math.ceil(Math.max(1,printCount)/PER_PAGE))};}
   // which rows will print: the checked ones if any; otherwise the whole list
   // (everything still here is by definition not printed yet)
   function printSet(){const sel=rows.filter(r=>r.sel);if(sel.length)return sel;return rows.slice();}
-  // expand each label into itself plus its "1 BEHIND".."N BEHIND" stock-depth labels
-  function expand(list){const out=[];list.forEach(r=>{out.push(r);const n=Math.max(0,intOf(r.behind));for(let k=1;k<=n;k++)out.push({isBehind:true,num:k,of:n,sku:r.sku,perBox:r.perBox});});return out;}
+  // expand each entry into `copies` printed labels plus its "1 BEHIND".."N BEHIND"
+  // stock-depth labels (the behind chain prints once per entry, not per copy)
+  function expand(list){const out=[];list.forEach(r=>{const c=copiesOf(r);for(let k=0;k<c;k++)out.push(r);const n=Math.max(0,intOf(r.behind));for(let k=1;k<=n;k++)out.push({isBehind:true,num:k,of:n,sku:r.sku,perBox:r.perBox});});return out;}
   function escq(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
   // Cheap refresh: counts, selection summary and button states only. Editing a qty or
   // ticking a checkbox calls this instead of render() — rebuilding all 300 strips on
@@ -584,16 +634,25 @@ function showTab(name){
         const photoctl=template==="photo"
           ?'<div class="photoctl"><span class="lbl">Photo</span><div class="thumb'+(r.img?'':' empty')+'"'+(r.img?' style="background-image:url('+"'"+escq(r.img)+"'"+')"':'')+'>'+(r.img?'':'no img')+'</div><label class="pill sm">'+(r.img?'Replace':'Add photo')+'<input type="file" accept="image/*" data-i="'+i+'"></label>'+(r.img?'<button class="pill sm" data-i="'+i+'" data-act="imgclear">Clear</button>':'')+'</div>'
           :'';
-        return '<div class="strip"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div><button class="pill sm dtog" data-i="'+i+'" data-act="done" title="Mark this label printed — moves it to the Archive tab">Mark printed</button></div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div><button class="pill sm" data-i="'+i+'" data-act="voiceqty" title="Say the quantity">🎤 Say qty</button></div><div class="field"><span class="lbl">Behind</span><div class="stepper"><button data-i="'+i+'" data-bd="-1">&minus;</button><input type="number" min="0" class="bdinput" value="'+Math.max(0,intOf(r.behind))+'" data-i="'+i+'"><button data-i="'+i+'" data-bd="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="dup">Duplicate</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'"><button class="pill sm" data-i="'+i+'" data-act="voicedate">🎤 Say date</button>'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
+        return '<div class="strip"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+(copiesOf(r)>1?' <span class="xbadge">&times;'+copiesOf(r)+'</span>':'')+'</div><button class="pill sm dtog" data-i="'+i+'" data-act="done" title="Mark this label printed — moves it to the Archive tab">Mark printed</button></div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div><button class="pill sm" data-i="'+i+'" data-act="voiceqty" title="Say the quantity">🎤 Say qty</button></div><div class="field"><span class="lbl">Behind</span><div class="stepper"><button data-i="'+i+'" data-bd="-1">&minus;</button><input type="number" min="0" class="bdinput" value="'+Math.max(0,intOf(r.behind))+'" data-i="'+i+'"><button data-i="'+i+'" data-bd="1">+</button></div></div><div class="field"><span class="lbl">Copies</span><div class="stepper"><button data-i="'+i+'" data-cd="-1">&minus;</button><input type="number" min="1" class="cpinput" value="'+copiesOf(r)+'" data-i="'+i+'"><button data-i="'+i+'" data-cd="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="qw" title="Step through the list from here, qty-first">&#9889; Quick qty</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'"><button class="pill sm" data-i="'+i+'" data-act="voicedate">🎤 Say date</button>'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
       }).join("");
     }
   }
   document.getElementById("llist").addEventListener("click",e=>{
     const btn=e.target.closest("button");if(!btn)return;const i=+btn.dataset.i;
-    if(btn.dataset.act==="dup"){rows.splice(i+1,0,Object.assign({},rows[i],{sel:false,done:false}));persist();render();return;}
+    // copies stepper: badge + input update in place; render only when the badge appears/disappears
+    if(btn.dataset.cd){
+      const v=Math.max(1,copiesOf(rows[i])+(+btn.dataset.cd));rows[i].copies=v;
+      const inp=btn.parentElement.querySelector("input");if(inp)inp.value=v;
+      persist();renderCounts();
+      const strip=btn.closest(".strip"),badge=strip&&strip.querySelector(".xbadge");
+      if(v>1&&badge)badge.innerHTML="&times;"+v; else if((v>1&&!badge)||(v===1&&badge))render();
+      return;
+    }
     if(btn.dataset.act==="rm"){rows.splice(i,1);persist();render();return;}
     if(btn.dataset.act==="expclear"){rows[i].expiry="";persist();render();return;}
     if(btn.dataset.act==="imgclear"){rows[i].img="";persist();render();return;}
+    if(btn.dataset.act==="qw"){qwOpen(i);return;}
     if(btn.dataset.act==="done"){archiveRows([i],true);toast("Marked printed &rarr; moved to the Archive tab");return;}
     if(btn.dataset.act==="voicedate"){voiceDate(i);return;}
     if(btn.dataset.act==="voiceqty"){voiceQty(i);return;}
@@ -605,6 +664,7 @@ function showTab(name){
   // No re-render here: rebuilding the list mid-keystroke would close the keyboard.
   document.getElementById("llist").addEventListener("input",e=>{
     if(e.target.matches('input.bdinput')){rows[+e.target.dataset.i].behind=Math.max(0,intOf(e.target.value));persist();renderCounts();return;}
+    if(e.target.matches('input.cpinput')){rows[+e.target.dataset.i].copies=Math.max(1,intOf(e.target.value)||1);persist();renderCounts();return;}
     if(e.target.matches('input[type=number]')){rows[+e.target.dataset.i].perBox=Math.max(0,intOf(e.target.value));persist();renderCounts();}
   });
   // Tapping a qty field selects the whole number, so typing replaces it — no
@@ -615,6 +675,7 @@ function showTab(name){
   document.getElementById("llist").addEventListener("change",e=>{
     if(e.target.matches('input.selbox')){rows[+e.target.dataset.i].sel=e.target.checked;renderCounts();return;}
     if(e.target.matches('input.bdinput')){const i=+e.target.dataset.i;rows[i].behind=Math.max(0,intOf(e.target.value));e.target.value=rows[i].behind;persist();renderCounts();return;}
+    if(e.target.matches('input.cpinput')){const i=+e.target.dataset.i;rows[i].copies=Math.max(1,intOf(e.target.value)||1);e.target.value=rows[i].copies;persist();render();return;}
     if(e.target.matches('input[type=number]')){const i=+e.target.dataset.i;rows[i].perBox=Math.max(0,intOf(e.target.value));e.target.value=rows[i].perBox;persist();renderCounts();maybeApply(i);}
     if(e.target.matches('input[type=date]')){const i=+e.target.dataset.i;rows[i].expiry=e.target.value||"";persist();render();}
     if(e.target.matches('input[type=file]')){const i=+e.target.dataset.i,f=e.target.files&&e.target.files[0];if(!f)return;fileToThumb(f).then(uri=>{rows[i].img=uri;userPhotos[rows[i].sku]=uri;saveUserPhotos();persist();render();}).catch(()=>alert("Couldn't read that image."));}
@@ -676,7 +737,8 @@ function showTab(name){
     const set=new Set(indices);
     const back=archive.filter((r,a)=>set.has(a));
     if(!back.length)return;
-    back.forEach(r=>{rows.push({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:false,behind:Math.max(0,intOf(r.behind))});});
+    back.forEach(r=>{rows.push({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||userPhotos[String(r.sku)]||"",done:false,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1)});});
+    mergeDuplicates();
     archive=archive.filter((r,a)=>!set.has(a));
     persist();saveArchive();render();
     toast(back.length+" restored &rarr; back on the Labels tab");
@@ -713,7 +775,7 @@ function showTab(name){
         if(!existing.img&&cat.img)existing.img=cat.img;
         updated++;
       }else{
-        rows.push({sku,desc:desc||cat.desc||"",perBox,expiry:"",img:cat.img||"",done:false,behind:0});added++;
+        rows.push({sku,desc:desc||cat.desc||"",perBox,expiry:"",img:cat.img||"",done:false,behind:0,copies:1});added++;
       }});
     if(added+updated){persist();render();}
     return {added,updated};
@@ -733,7 +795,7 @@ function showTab(name){
   document.getElementById("selClear").addEventListener("click",()=>{ if(rows.some(r=>r.sel)){rows.forEach(r=>r.sel=false);render();} });
   // Backup / restore the whole labels database (entries + archive + saved SKU catalog) as one JSON file
   document.getElementById("backupBtn").addEventListener("click",()=>{
-    const data={v:2,rows:rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:r.img,behind:Math.max(0,intOf(r.behind))})),archive:archive.map(cleanArc),catalog};
+    const data={v:2,rows:rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:r.img,behind:Math.max(0,intOf(r.behind)),copies:copiesOf(r)})),archive:archive.map(cleanArc),catalog};
     const b=new Blob([JSON.stringify(data)],{type:"application/json"}),u=URL.createObjectURL(b),a=document.createElement("a");
     a.href=u;a.download="worldmarket_labels_backup_"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(u);
   });
@@ -742,7 +804,8 @@ function showTab(name){
     fr.onload=()=>{let d;try{d=JSON.parse(fr.result);}catch(err){alert("That file isn't valid JSON.");return;}
       if(!d||!Array.isArray(d.rows)){alert("That doesn't look like a labels backup.");return;}
       if(!confirm("Replace your current "+rows.length+" labels"+(archive.length?(" and "+archive.length+" archived"):"")+" with the backup ("+d.rows.length+" labels"+(Array.isArray(d.archive)?(", "+d.archive.length+" archived"):"")+")?"))return;
-      rows=d.rows.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done,behind:Math.max(0,intOf(r.behind))}));
+      rows=d.rows.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1)}));
+      mergeDuplicates();
       if(Array.isArray(d.archive))archive=d.archive.map(cleanArc);
       if(d.catalog&&typeof d.catalog==="object"){catalog=d.catalog;saveCatalog();}
       sweepPrinted();                                  // v1 backups: printed rows go to the archive
@@ -784,29 +847,47 @@ function showTab(name){
     const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
     if(!SR){alert("Voice input isn't supported on this browser.");return;}
     opts=opts||{};
-    if(activeRec){try{activeRec.abort();}catch(e){}activeRec=null;}
-    const rc=new SR();rc.lang='en-US';rc.interimResults=true;rc.maxAlternatives=1;
-    activeRec=rc;
-    let finalTxt="",interimTxt="",finished=false,silenceTimer=null;
+    let attemptsLeft=1;   // one silent retry when nothing was heard (spoke before the mic opened)
     const setBtn=t=>{if(btn)btn.textContent=t;};
-    setBtn("🎤 …");
-    const finish=()=>{if(finished)return;finished=true;clearTimeout(hardStop);clearTimeout(silenceTimer);if(activeRec===rc)activeRec=null;setBtn(idleLabel);cb((finalTxt||interimTxt).trim());};
-    const commitNow=()=>{try{rc.abort();}catch(e){}finish();};
-    rc.onaudiostart=()=>{setBtn("🎤 Speak now");if(navigator.vibrate)try{navigator.vibrate(40);}catch(e){}};
-    rc.onresult=ev=>{
-      let f="",it="";
-      for(let k=0;k<ev.results.length;k++){const r=ev.results[k];if(r.isFinal)f+=r[0].transcript+" ";else it+=r[0].transcript+" ";}
-      finalTxt=f.trim();interimTxt=it.trim();
-      const heard=(finalTxt||interimTxt);if(heard)setBtn("🎤 "+heard.slice(0,16));
-      if(finalTxt||(heard&&opts.quick&&opts.quick(heard))){commitNow();return;}
-      // heard something but can't parse it yet — commit after a short pause in speech
-      clearTimeout(silenceTimer);
-      if(heard)silenceTimer=setTimeout(commitNow,opts.silence||900);
-    };
-    rc.onerror=ev=>{if(ev.error==="not-allowed"||ev.error==="service-not-allowed"){finished=true;if(activeRec===rc)activeRec=null;setBtn(idleLabel);alert("Microphone is blocked — allow mic access for this site and try again.");}};
-    rc.onend=finish;
-    const hardStop=setTimeout(commitNow,8000);   // never hang in "Listening" forever
-    try{rc.start();}catch(e){finish();}
+    function attempt(){
+      if(activeRec){try{activeRec.abort();}catch(e){}activeRec=null;}
+      const rc=new SR();rc.lang='en-US';rc.interimResults=true;rc.maxAlternatives=1;
+      activeRec=rc;
+      let finalTxt="",interimTxt="",finished=false,fatal=false,silenceTimer=null;
+      setBtn("🎤 …");
+      const finish=()=>{
+        if(finished)return;finished=true;clearTimeout(hardStop);clearTimeout(silenceTimer);if(activeRec===rc)activeRec=null;
+        const heard=(finalTxt||interimTxt).trim();
+        if(fatal){setBtn(idleLabel);return;}                 // a specific error message was already shown
+        if(!heard&&attemptsLeft>0){attemptsLeft--;toast("&#127908; One more time &mdash; speak now");attempt();return;}
+        setBtn(idleLabel);cb(heard);
+      };
+      const commitNow=()=>{try{rc.abort();}catch(e){}finish();};
+      const ready=()=>{setBtn("🎤 Speak now");if(navigator.vibrate)try{navigator.vibrate(40);}catch(e){}};
+      rc.onaudiostart=ready;rc.onsoundstart=ready;   // Android fires these inconsistently — cue on either
+      rc.onresult=ev=>{
+        let f="",it="";
+        for(let k=0;k<ev.results.length;k++){const r=ev.results[k];if(r.isFinal)f+=r[0].transcript+" ";else it+=r[0].transcript+" ";}
+        finalTxt=f.trim();interimTxt=it.trim();
+        const heard=(finalTxt||interimTxt);if(heard)setBtn("🎤 "+heard.slice(0,16));
+        if(finalTxt||(heard&&opts.quick&&opts.quick(heard))){commitNow();return;}
+        // heard something but can't parse it yet — commit after a short pause in speech
+        clearTimeout(silenceTimer);
+        if(heard)silenceTimer=setTimeout(commitNow,opts.silence||900);
+      };
+      // name the actual failure on screen — "didn't catch that" hid the real reasons
+      rc.onerror=ev=>{
+        const err=ev.error||"";
+        if(err==="not-allowed"||err==="service-not-allowed"){fatal=true;alert("Microphone is blocked for this site. In Chrome: tap the lock icon next to the address, Permissions, allow Microphone.");}
+        else if(err==="audio-capture"){fatal=true;alert("Chrome can't reach the microphone. Check Android Settings → Apps → Chrome → Permissions → Microphone.");}
+        else if(err==="network"){fatal=true;toast("&#9888; Voice needs internet &mdash; speech is transcribed online and the connection failed");}
+        else if(err&&err!=="no-speech"&&err!=="aborted"){toast("&#9888; Mic error: "+err);}
+      };
+      rc.onend=finish;
+      const hardStop=setTimeout(commitNow,8000);   // never hang in "Listening" forever
+      try{rc.start();}catch(e){finish();}
+    }
+    attempt();
   }
   function voiceDate(i){
     const btn=document.querySelector('button[data-act="voicedate"][data-i="'+i+'"]');
@@ -819,19 +900,71 @@ function showTab(name){
       else alert('Heard: "'+t+'"\nCouldn\'t find a date. Try like "August 12 2026".');
     },{silence:1400});
   }
+  // Qty context: the whole utterance IS a number, so translate what speech-to-text
+  // commonly hears instead of a bare digit — "six" comes back as "sex", "eight" as
+  // "ate", "four" as "for"… Safe ONLY here; dates keep the strict parser so words
+  // like "for August" stay words.
+  function qtyToDigits(t){
+    t=" "+String(t).toLowerCase().replace(/[^a-z0-9\s]/g," ")+" ";
+    const homo={won:"one",juan:"one",to:"two",too:"two",tree:"three",free:"three","for":"four",fore:"four",floor:"four",sex:"six",sick:"six",sicks:"six",sax:"six",ate:"eight",aid:"eight",nein:"nine",nien:"nine",tin:"ten",tan:"ten",a:"",an:"",the:"",um:"",uh:""};
+    Object.keys(homo).forEach(k=>{t=t.replace(new RegExp("\\b"+k+"\\b","g")," "+homo[k]+" ");});
+    return speechToDigits(t);
+  }
   // Speak a quantity, e.g. "twelve" or "twenty four" -> fills Qty / box (reuses the number-word normalizer)
   function voiceQty(i){
     const btn=document.querySelector('button[data-act="voiceqty"][data-i="'+i+'"]');
     listenOnce(btn,"🎤 Say qty",t=>{
       if(!rows[i])return;
       if(!t){toast("Didn't catch that — tap and say the number");return;}
-      const m=speechToDigits(t).match(/\d+/);
+      const m=qtyToDigits(t).match(/\d+/);
       if(m){const v=Math.max(0,parseInt(m[0],10));rows[i].perBox=v;
         const inp=document.querySelector('.stepper input[type=number]:not(.bdinput)[data-i="'+i+'"]');if(inp)inp.value=v;
         persist();renderCounts();maybeApply(i);toast("Qty/box set to "+v);}
       else alert('Heard: "'+t+'"\nCouldn\'t find a number. Try like "twelve".');
-    },{quick:t=>/\d/.test(speechToDigits(t)),silence:700});   // "8" applies the moment it's heard
+    },{quick:t=>/\d/.test(qtyToDigits(t)),silence:700});   // "8" applies the moment it's heard
   }
+  /* ---- Quick-qty workflow: one label at a time, in list order, qty-first ----
+     Opened from a card's ⚡ Quick qty button. The qty arrives pre-selected so typing
+     (or the mic) replaces it; Enter / Save & next commits and advances immediately;
+     Skip advances without touching anything. */
+  let qwIdx=-1;
+  const qwModal=document.getElementById("qwModal"),qwQty=document.getElementById("qwQty");
+  function qwOpen(i){qwIdx=i;qwModal.classList.add("open");qwShow();}
+  function qwShow(){
+    const r=rows[qwIdx];
+    if(!r){qwFinish("End of list — quick pass done");return;}
+    document.getElementById("qwPos").textContent="Label "+(qwIdx+1)+" of "+rows.length;
+    document.getElementById("qwSku").innerHTML=escq(r.sku)+(copiesOf(r)>1?' <span class="xbadge">&times;'+copiesOf(r)+'</span>':'');
+    document.getElementById("qwDesc").textContent=r.desc||"";
+    const th=document.getElementById("qwThumb");
+    th.style.backgroundImage=r.img?("url('"+r.img.replace(/'/g,"%27")+"')"):"none";
+    qwQty.value=intOf(r.perBox);
+    setTimeout(()=>{qwQty.focus();try{qwQty.select();}catch(e){}},60);
+  }
+  function qwAdvance(save){
+    const r=rows[qwIdx];
+    if(r&&save){
+      const v=Math.max(0,intOf(qwQty.value));
+      if(v!==intOf(r.perBox)){r.perBox=v;persist();}
+    }
+    qwIdx++;
+    if(qwIdx>=rows.length){qwFinish("End of list — quick pass done");return;}
+    qwShow();
+  }
+  function qwFinish(msg){qwIdx=-1;qwModal.classList.remove("open");render();if(msg)toast(msg);}
+  document.getElementById("qwSave").addEventListener("click",()=>qwAdvance(true));
+  document.getElementById("qwSkip").addEventListener("click",()=>qwAdvance(false));
+  document.getElementById("qwClose").addEventListener("click",()=>qwFinish(""));
+  qwQty.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();qwAdvance(true);}else if(e.key==="Escape"){qwFinish("");}});
+  document.getElementById("qwMic").addEventListener("click",()=>{
+    listenOnce(document.getElementById("qwMic"),"🎤 Say qty",t=>{
+      if(!t){toast("Didn't catch that — tap and say the number");return;}
+      const m=qtyToDigits(t).match(/\d+/);
+      if(m){qwQty.value=Math.max(0,parseInt(m[0],10));qwQty.focus();try{qwQty.select();}catch(e){}}
+      else toast('Heard "'+escq(t)+'" — no number in that');
+    },{quick:x=>/\d/.test(qtyToDigits(x)),silence:700});
+  });
+
   document.getElementById("tplText").addEventListener("click",()=>{template="text";localStorage.setItem(TPLKEY,template);render();});
   document.getElementById("tplPhoto").addEventListener("click",()=>{template="photo";localStorage.setItem(TPLKEY,template);render();});
   // The store's SKU list ships with the app (labels.json, same origin) and loads itself on
@@ -879,7 +1012,8 @@ function showTab(name){
     const desc=document.getElementById("fDesc").value.trim()||cat.desc||"";
     const perRaw=document.getElementById("fPer").value.trim();
     const perBox=perRaw!==""?Math.max(0,intOf(perRaw)):(cat.perBox!==undefined?cat.perBox:12);
-    rows.push({sku,desc,perBox,expiry:document.getElementById("fExp").value||"",img:cat.img||"",done:false});
+    rows.push({sku,desc,perBox,expiry:document.getElementById("fExp").value||"",img:cat.img||"",done:false,behind:0,copies:1});
+    mergeDuplicates();
     document.getElementById("fSku").value="";document.getElementById("fDesc").value="";document.getElementById("fPer").value="12";document.getElementById("fExp").value="";
     document.getElementById("addForm").classList.remove("open");persist();render();
   });
