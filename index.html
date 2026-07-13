@@ -173,7 +173,7 @@
 </style>
 </head>
 <body>
-<header><h1>World Market Inventory &middot; Store 071</h1></header>
+<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.2</span></h1></header>
 <div class="tabs">
   <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
   <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
@@ -288,7 +288,7 @@
 <div class="tabpage" id="page-archive"><div class="wrap">
   <div class="summary" id="asummary"></div>
   <div id="alist"></div>
-  <p class="note">Labels you <b>Mark printed</b> (or <b>Archive</b>) on the Labels tab land here and drop off that list, so Labels always shows only what still needs printing. <b>&#8617; Restore</b> sends an entry back to Labels to print again &mdash; check several and use the Restore button below to bring back a batch. <b>Remove</b> deletes an entry for good.</p>
+  <p class="note">Labels you <b>Mark printed</b> (or <b>Archive</b>) on the Labels tab land here and drop off that list, so Labels always shows only what still needs printing. <b>&#8617; Restore</b> sends an entry back to Labels to print again &mdash; check several and use the Restore button below for a batch, or tap Restore with <b>nothing checked</b> to bring back <b>everything</b> at once. <b>Remove</b> deletes an entry for good.</p>
 </div></div>
 
 <div class="applybar" id="applyBar"><span id="applyMsg"></span><button id="applyAll">Apply to all</button><button id="applyDismiss">Dismiss</button></div>
@@ -640,10 +640,14 @@ function showTab(name){
     toast(back.length+" restored &rarr; back on the Labels tab");
   }
   document.getElementById("archiveBtn").addEventListener("click",archiveSelected);
+  // Restore: the checked entries — or, with nothing checked, offer to bring back
+  // EVERYTHING in one tap (the "unarchive it all" escape hatch).
   document.getElementById("unarchiveBtn").addEventListener("click",()=>{
+    if(!archive.length){alert("Nothing is archived.");return;}
     const idx=archive.map((r,a)=>a).filter(a=>archive[a].sel);
-    if(!idx.length){alert("Check the archived entries you want to restore first.");return;}
-    restoreArchived(idx);
+    if(idx.length){restoreArchived(idx);return;}
+    if(confirm("Restore ALL "+archive.length+" archived entr"+(archive.length>1?"ies":"y")+" back to Labels?"))
+      restoreArchived(archive.map((r,a)=>a));
   });
   document.getElementById("arcRemoveBtn").addEventListener("click",()=>{
     const idx=new Set(archive.map((r,a)=>a).filter(a=>archive[a].sel));
