@@ -109,6 +109,21 @@
   .modal{position:fixed;inset:0;background:rgba(0,0,0,.78);display:none;align-items:center;justify-content:center;z-index:20;padding:16px}
   .modal.open{display:flex}
   .modal-inner{background:var(--card);border:1px solid var(--line);border-radius:14px;width:100%;max-width:660px;height:82vh;display:flex;flex-direction:column;overflow:hidden}
+  /* ---- quick-qty workflow modal ---- */
+  .modal-inner.qw{height:auto;max-height:92vh;max-width:440px}
+  .qwbody{padding:18px 18px 6px}
+  .qwtop{display:flex;gap:14px;align-items:center;margin-bottom:14px}
+  .qwthumb{width:72px;height:72px;border-radius:10px;border:1px solid var(--line);background:var(--card2) no-repeat center/cover;flex:0 0 auto}
+  .qwsku{font-weight:800;font-size:30px;font-variant-numeric:tabular-nums;color:var(--ink);line-height:1.1}
+  .qwdesc{color:var(--muted);font-size:14px;margin-top:4px;line-height:1.35}
+  .qwlbl{font-size:11px;letter-spacing:.13em;text-transform:uppercase;color:var(--accent-l);font-weight:800;margin-bottom:6px}
+  .qwrow{display:flex;gap:10px;align-items:center}
+  #qwQty{flex:1;min-width:0;border:2px solid var(--accent);border-radius:12px;background:var(--card2);color:var(--ink);font-size:32px;font-weight:800;text-align:center;padding:10px;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+  #qwQty::-webkit-outer-spin-button,#qwQty::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .qwrow .pill{height:56px;white-space:nowrap;cursor:pointer}
+  .qwacts{display:flex;gap:10px;padding:14px 18px 18px}
+  .qwacts button{flex:1;min-height:56px;border-radius:12px;font-size:17px;font-weight:800;border:1px solid var(--line);background:var(--card2);color:var(--ink);cursor:pointer}
+  .qwacts .qwsave{flex:1.6;background:var(--accent2);border-color:var(--accent2);color:#fff}
   .modal-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
   .modal-head b{font-size:16px}
   .modal-head button{border:none;background:transparent;font-size:24px;color:var(--muted);min-height:auto;padding:4px 8px}
@@ -175,7 +190,7 @@
 </style>
 </head>
 <body>
-<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.3</span></h1></header>
+<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.4</span></h1></header>
 <div class="tabs">
   <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
   <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
@@ -308,6 +323,24 @@
     <button id="arcRemoveBtn">&#128465; Remove</button>
   </span>
 </div>
+
+<!-- Quick-qty workflow: walk the list one label at a time, qty pre-selected,
+     Enter saves & advances, Skip moves on. Opened from ⚡ Quick qty on a card. -->
+<div class="modal" id="qwModal"><div class="modal-inner qw">
+  <div class="modal-head"><b id="qwPos"></b><button id="qwClose">&times;</button></div>
+  <div class="qwbody">
+    <div class="qwtop"><div class="qwthumb" id="qwThumb"></div><div class="qwid"><div class="qwsku" id="qwSku"></div><div class="qwdesc" id="qwDesc"></div></div></div>
+    <div class="qwlbl">Qty / box</div>
+    <div class="qwrow">
+      <input id="qwQty" type="number" inputmode="numeric" min="0">
+      <button class="pill" id="qwMic">&#127908; Say qty</button>
+    </div>
+  </div>
+  <div class="qwacts">
+    <button id="qwSkip">Skip &rarr;</button>
+    <button class="qwsave" id="qwSave">&#10003; Save &amp; next</button>
+  </div>
+</div></div>
 
 <div class="modal" id="modal"><div class="modal-inner">
   <div class="modal-head"><b>Print preview</b><button id="closeModal">&times;</button></div>
@@ -584,7 +617,7 @@ function showTab(name){
         const photoctl=template==="photo"
           ?'<div class="photoctl"><span class="lbl">Photo</span><div class="thumb'+(r.img?'':' empty')+'"'+(r.img?' style="background-image:url('+"'"+escq(r.img)+"'"+')"':'')+'>'+(r.img?'':'no img')+'</div><label class="pill sm">'+(r.img?'Replace':'Add photo')+'<input type="file" accept="image/*" data-i="'+i+'"></label>'+(r.img?'<button class="pill sm" data-i="'+i+'" data-act="imgclear">Clear</button>':'')+'</div>'
           :'';
-        return '<div class="strip"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div><button class="pill sm dtog" data-i="'+i+'" data-act="done" title="Mark this label printed — moves it to the Archive tab">Mark printed</button></div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div><button class="pill sm" data-i="'+i+'" data-act="voiceqty" title="Say the quantity">🎤 Say qty</button></div><div class="field"><span class="lbl">Behind</span><div class="stepper"><button data-i="'+i+'" data-bd="-1">&minus;</button><input type="number" min="0" class="bdinput" value="'+Math.max(0,intOf(r.behind))+'" data-i="'+i+'"><button data-i="'+i+'" data-bd="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="dup">Duplicate</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'"><button class="pill sm" data-i="'+i+'" data-act="voicedate">🎤 Say date</button>'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
+        return '<div class="strip"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div><button class="pill sm dtog" data-i="'+i+'" data-act="done" title="Mark this label printed — moves it to the Archive tab">Mark printed</button></div><div class="desc">'+escq(r.desc||"")+'</div><div class="controls"><div class="field"><span class="lbl">Qty / box</span><div class="stepper"><button data-i="'+i+'" data-d="-1">&minus;</button><input type="number" min="0" value="'+intOf(r.perBox)+'" data-i="'+i+'"><button data-i="'+i+'" data-d="1">+</button></div><button class="pill sm" data-i="'+i+'" data-act="voiceqty" title="Say the quantity">🎤 Say qty</button></div><div class="field"><span class="lbl">Behind</span><div class="stepper"><button data-i="'+i+'" data-bd="-1">&minus;</button><input type="number" min="0" class="bdinput" value="'+Math.max(0,intOf(r.behind))+'" data-i="'+i+'"><button data-i="'+i+'" data-bd="1">+</button></div></div><div class="rowacts"><button class="pill" data-i="'+i+'" data-act="qw" title="Step through the list from here, qty-first">&#9889; Quick qty</button><button class="pill" data-i="'+i+'" data-act="dup">Duplicate</button><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>'+photoctl+'<div class="expline"><span class="lbl">Expires (optional)</span><input type="date" class="expinput" data-i="'+i+'" value="'+(r.expiry||"")+'"><button class="pill sm" data-i="'+i+'" data-act="voicedate">🎤 Say date</button>'+(r.expiry?'<button class="pill sm" data-i="'+i+'" data-act="expclear">Clear</button>':'')+'</div></div>';
       }).join("");
     }
   }
@@ -594,6 +627,7 @@ function showTab(name){
     if(btn.dataset.act==="rm"){rows.splice(i,1);persist();render();return;}
     if(btn.dataset.act==="expclear"){rows[i].expiry="";persist();render();return;}
     if(btn.dataset.act==="imgclear"){rows[i].img="";persist();render();return;}
+    if(btn.dataset.act==="qw"){qwOpen(i);return;}
     if(btn.dataset.act==="done"){archiveRows([i],true);toast("Marked printed &rarr; moved to the Archive tab");return;}
     if(btn.dataset.act==="voicedate"){voiceDate(i);return;}
     if(btn.dataset.act==="voiceqty"){voiceQty(i);return;}
@@ -832,6 +866,48 @@ function showTab(name){
       else alert('Heard: "'+t+'"\nCouldn\'t find a number. Try like "twelve".');
     },{quick:t=>/\d/.test(speechToDigits(t)),silence:700});   // "8" applies the moment it's heard
   }
+  /* ---- Quick-qty workflow: one label at a time, in list order, qty-first ----
+     Opened from a card's ⚡ Quick qty button. The qty arrives pre-selected so typing
+     (or the mic) replaces it; Enter / Save & next commits and advances immediately;
+     Skip advances without touching anything. */
+  let qwIdx=-1;
+  const qwModal=document.getElementById("qwModal"),qwQty=document.getElementById("qwQty");
+  function qwOpen(i){qwIdx=i;qwModal.classList.add("open");qwShow();}
+  function qwShow(){
+    const r=rows[qwIdx];
+    if(!r){qwFinish("End of list — quick pass done");return;}
+    document.getElementById("qwPos").textContent="Label "+(qwIdx+1)+" of "+rows.length;
+    document.getElementById("qwSku").textContent=r.sku;
+    document.getElementById("qwDesc").textContent=r.desc||"";
+    const th=document.getElementById("qwThumb");
+    th.style.backgroundImage=r.img?("url('"+r.img.replace(/'/g,"%27")+"')"):"none";
+    qwQty.value=intOf(r.perBox);
+    setTimeout(()=>{qwQty.focus();try{qwQty.select();}catch(e){}},60);
+  }
+  function qwAdvance(save){
+    const r=rows[qwIdx];
+    if(r&&save){
+      const v=Math.max(0,intOf(qwQty.value));
+      if(v!==intOf(r.perBox)){r.perBox=v;persist();}
+    }
+    qwIdx++;
+    if(qwIdx>=rows.length){qwFinish("End of list — quick pass done");return;}
+    qwShow();
+  }
+  function qwFinish(msg){qwIdx=-1;qwModal.classList.remove("open");render();if(msg)toast(msg);}
+  document.getElementById("qwSave").addEventListener("click",()=>qwAdvance(true));
+  document.getElementById("qwSkip").addEventListener("click",()=>qwAdvance(false));
+  document.getElementById("qwClose").addEventListener("click",()=>qwFinish(""));
+  qwQty.addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();qwAdvance(true);}else if(e.key==="Escape"){qwFinish("");}});
+  document.getElementById("qwMic").addEventListener("click",()=>{
+    listenOnce(document.getElementById("qwMic"),"🎤 Say qty",t=>{
+      if(!t){toast("Didn't catch that — tap and say the number");return;}
+      const m=speechToDigits(t).match(/\d+/);
+      if(m){qwQty.value=Math.max(0,parseInt(m[0],10));qwQty.focus();try{qwQty.select();}catch(e){}}
+      else toast('Heard "'+escq(t)+'" — no number in that');
+    },{quick:x=>/\d/.test(speechToDigits(x)),silence:700});
+  });
+
   document.getElementById("tplText").addEventListener("click",()=>{template="text";localStorage.setItem(TPLKEY,template);render();});
   document.getElementById("tplPhoto").addEventListener("click",()=>{template="photo";localStorage.setItem(TPLKEY,template);render();});
   // The store's SKU list ships with the app (labels.json, same origin) and loads itself on
