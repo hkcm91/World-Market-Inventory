@@ -60,6 +60,29 @@ Open that URL on the phone instead. (If you serve the app from somewhere else ov
 the sync server must also be HTTPS — browsers block an HTTPS page from calling an HTTP server.
 Serving the app from this server, as above, avoids that entirely.)
 
+## Product library / gallery (`gallery.html` ← `library.json`)
+
+`gallery.html` browses a whole department of World Market products from `library.json`.
+Rebuild or extend that file with the catalog scraper:
+
+```bash
+node server/scrape-catalog.mjs                       # refresh Candy & Chocolate (default)
+node server/scrape-catalog.mjs --cgid 117110 --source candy-dept
+node server/scrape-catalog.mjs --q "hot sauce" --source pantry
+node server/scrape-catalog.mjs --dry                 # report only, don't write
+```
+
+**Why a dedicated scraper — the "stops at an even 300" fix.** worldmarket.com runs on
+Salesforce Commerce Cloud (Demandware), whose storefront grid **hard-caps a single request at
+~300 hits**: fetching a category with `?sz=300` (or larger) returns only ~300 tiles even when
+the category has 541. Any one-shot fetch silently truncates at an even 300. The results are all
+reachable — you just have to **page the grid with the `start` offset** (`start=0, 300, 600 …`)
+via `Search-UpdateGrid` and union by SKU. This script does that, so a category comes back
+complete (candy = ~540) instead of capped. It merges into `library.json`, preserves the inline
+image already stored for each SKU, and only downloads images for genuinely new products, so
+re-running is a cheap no-op. Flags: `--refresh-images`, `--no-images`, `--replace-all`, `--sz`,
+`--out`.
+
 ## Alternative: the MCP (for Claude Desktop / `claude mcp` users)
 
 `mcp/` exposes the same finder as MCP tools (`list_targets`, `find_product_images`) so you can
