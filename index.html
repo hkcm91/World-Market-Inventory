@@ -241,8 +241,13 @@
       <label class="wflabel" for="scanWorkflow">Workflow</label>
       <select id="scanWorkflow" class="wfselect">
         <option value="topstock">Top Stock Inventory</option>
+        <option value="expiry">Expiry Log</option>
         <option value="preview">Preview only (just look up)</option>
       </select>
+    </div>
+    <div class="scanrow" id="scanExpRow" style="display:none;margin-top:8px">
+      <label class="wflabel" for="scanExp">Expires</label>
+      <input id="scanExp" type="date">
     </div>
     <p class="note" style="margin-top:8px">Pick a workflow, then scan barcodes off <b>pick tickets</b> or <b>product boxes</b>. Each scan looks up the SKU so you can see what&rsquo;s in your stock list, its name and qty/box, before <b>Import</b> sends the batch into that workflow. No camera? Type or paste a code below.</p>
     <div class="cam" id="scanCam">
@@ -587,14 +592,23 @@ function showTab(name){
 
   // Hooks the Scan tab uses to push scanned SKUs into the labels list (catalog-aware).
   window.wmLabelsAddRows=function(items){
-    if(!Array.isArray(items))return 0;
-    let n=0;
+    if(!Array.isArray(items))return {added:0,updated:0};
+    let added=0,updated=0;
     items.forEach(it=>{const sku=String(it&&it.sku||"").trim();if(!sku)return;const cat=catalogGet(sku)||{};
-      const desc=String(it.desc||it.name||"").trim()||cat.desc||"";
-      const perBox=(it.perBox!==undefined&&it.perBox!=="")?Math.max(0,intOf(it.perBox)):(cat.perBox!==undefined?cat.perBox:12);
-      rows.push({sku,desc,perBox,expiry:"",img:cat.img||"",done:false,behind:0});n++;});
-    if(n){persist();render();}
-    return n;
+      const desc=String(it.desc||it.name||"").trim();
+      const qtyGiven=(it.perBox!==undefined&&it.perBox!=="");
+      const perBox=qtyGiven?Math.max(0,intOf(it.perBox)):(cat.perBox!==undefined?cat.perBox:12);
+      const existing=rows.find(r=>r.sku===sku);          // de-dupe: update the SKU we already have
+      if(existing){
+        if(qtyGiven)existing.perBox=perBox;
+        if(desc)existing.desc=desc;
+        if(!existing.img&&cat.img)existing.img=cat.img;
+        updated++;
+      }else{
+        rows.push({sku,desc:desc||cat.desc||"",perBox,expiry:"",img:cat.img||"",done:false,behind:0});added++;
+      }});
+    if(added+updated){persist();render();}
+    return {added,updated};
   };
   window.wmCatalogGet=function(sku){return catalogGet(sku);};
 
@@ -956,7 +970,7 @@ function showTab(name){
 (function(){
   const SBKEY="wm_scan_buffer_v1", WFKEY="wm_scan_workflow";
   // Workflows: what a scan is for, and where Import sends the batch.
-  const WF={topstock:{label:"Top Stock Inventory",dest:"labels"},preview:{label:"Preview only",dest:null}};
+  const WF={topstock:{label:"Top Stock Inventory",dest:"labels"},expiry:{label:"Expiry Log",dest:"expiry"},preview:{label:"Preview only",dest:null}};
   let buf=[]; try{buf=JSON.parse(localStorage.getItem(SBKEY))||[];}catch(e){buf=[];} if(!Array.isArray(buf))buf=[];
   function save(){try{localStorage.setItem(SBKEY,JSON.stringify(buf));}catch(e){}}
   const $=id=>document.getElementById(id);
@@ -968,6 +982,7 @@ function showTab(name){
     const w=wf();
     $("scanCount").textContent=buf.length;
     $("scanWfChip").innerHTML="Adding to: <b>"+esc(WF[w].label)+"</b>";
+    $("scanExpRow").style.display=(w==="expiry")?"flex":"none";
     const imp=$("scanImport");
     if(w==="preview"){imp.disabled=true;imp.textContent="Preview only — not importing";}
     else{imp.disabled=!buf.length;imp.innerHTML="⬇ Import"+(buf.length?(" "+buf.length):"")+" → "+esc(WF[w].label);}
@@ -1000,11 +1015,24 @@ function showTab(name){
   $("scanImport").addEventListener("click",()=>{
     const w=wf(); if(w==="preview"||!buf.length)return;
     const dest=WF[w].dest;
-    let n=0;
-    if(dest==="labels"&&window.wmLabelsAddRows){n=window.wmLabelsAddRows(buf.map(b=>({sku:b.sku,name:b.name,perBox:b.qty})));}
-    buf=[];save();render();
-    alert("Imported "+n+" item"+(n===1?"":"s")+" into "+WF[w].label+".");
-    if(n&&dest==="labels")showTab("labels");
+    if(dest==="labels"&&window.wmLabelsAddRows){
+      const r=window.wmLabelsAddRows(buf.map(b=>({sku:b.sku,name:b.name,perBox:b.qty})));
+      buf=[];save();render();
+      alert("Top Stock Inventory: "+r.added+" added"+(r.updated?(", "+r.updated+" updated (already on the list)"):"")+".");
+      if(r.added||r.updated)showTab("labels");
+      return;
+    }
+    if(dest==="expiry"&&window.expiryAddItems){
+      const iso=$("scanExp").value;
+      if(!iso){alert("Pick an expiry date for this batch first.");return;}
+      const d=new Date(iso+"T00:00:00");
+      const items=buf.map(b=>({sku:b.sku,name:b.name||("SKU "+b.sku),exp:iso,expDisp:d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}),t:new Date().toLocaleString()}));
+      const added=window.expiryAddItems(items);
+      buf=[];save();render();
+      alert("Expiry Log: added "+added+" item"+(added===1?"":"s")+(added<items.length?(" ("+(items.length-added)+" already logged for that date)"):"")+".");
+      if(added)showTab("expiry");
+      return;
+    }
   });
   $("scanClear").addEventListener("click",()=>{if(buf.length&&confirm("Clear the scanned list?")){buf=[];save();render();}});
 
