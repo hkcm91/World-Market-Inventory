@@ -60,6 +60,30 @@ Open that URL on the phone instead. (If you serve the app from somewhere else ov
 the sync server must also be HTTPS — browsers block an HTTPS page from calling an HTTP server.
 Serving the app from this server, as above, avoids that entirely.)
 
+## Scan a product barcode → World Market SKU + image (`/resolve`)
+
+The **Scan** tab can turn a scanned product UPC into the World Market **SKU + product image**.
+The phone browser can't reach worldmarket.com directly (CORS), so the reliable lookup runs on
+this server. Endpoint:
+
+```
+GET /resolve?upc=<barcode>     # UPC → Open Food Facts (name) → WM search → SKU + name + image
+GET /resolve?q=<product name>  # or search WM by name directly
+```
+
+**One-command setup for the phone:**
+
+```bash
+node server/backend.mjs                              # 1. run the server (serves the app + /resolve)
+cloudflared tunnel --url http://localhost:8787       # 2. get an https URL (browsers block https→http)
+```
+
+Then either **open the app from the tunnel URL** on the phone (simplest — same origin, `/resolve`
+just works), **or** keep using the site and paste the `https://…` tunnel URL into
+**Scan → ⚙ Sync server for World Market lookups**. Now a product-barcode scan fills the WM SKU,
+name, and image. Without a server it falls back to a best-effort phone lookup, then to the Open
+Food Facts name.
+
 ## Product library / gallery (`gallery.html` ← `library.json`)
 
 `gallery.html` browses a whole department of World Market products from `library.json`.

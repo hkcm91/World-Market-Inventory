@@ -291,6 +291,11 @@
       <input id="scanExp" type="date">
     </div>
     <p class="note" style="margin-top:8px">Pick a workflow, then <b>scan a barcode</b>, or point at a box/shelf tag and tap <b>&#10024; Read box</b> &mdash; it reads the text and guesses the <b>SKU</b>, <b>name</b>, <b>qty</b> and <b>expiry</b> to pre-fill for you (review before importing). No camera? Type or paste a code below.</p>
+    <details id="scanCfg" style="margin-top:8px">
+      <summary style="cursor:pointer;font-size:12px;color:var(--muted);font-weight:700">&#9881;&#65039; Sync server for World Market lookups (optional)</summary>
+      <input id="scanServer" class="wfselect" style="width:100%;margin-top:8px;font-weight:400;font-size:15px" placeholder="https://your-tunnel&hellip;  (reliable WM SKU + image)" autocomplete="off" inputmode="url">
+      <p class="note" style="margin-top:6px">Point this at your running sync server to get the <b>reliable</b> World Market SKU + image on a product-barcode scan. Must be an <b>https</b> URL here (an http page can&rsquo;t call it), or just open the app straight from the server instead. Leave blank to use the phone-only best-effort lookup.</p>
+    </details>
     <div class="cam" id="scanCam">
       <video id="scanVideo" playsinline muted></video>
       <div class="reticle"></div>
@@ -1652,9 +1657,13 @@ function showTab(name){
   // first (same-origin /resolve, reliable), then a best-effort phone reader-proxy, so it works
   // whether or not the sync server is running. Returns {sku,name,image} or null.
   async function wmResolve(upc,name){
-    if(location.protocol.indexOf("http")===0){            // 1) sync server, when the app is served from it
+    const bases=[];                                        // 1) sync server: configured URL, then same-origin
+    let cfg=""; try{cfg=(localStorage.getItem("wm_resolver")||"").trim().replace(/\/+$/,"");}catch(e){}
+    if(cfg)bases.push(cfg);
+    if(location.protocol.indexOf("http")===0&&location.origin!==cfg)bases.push(location.origin);
+    for(const base of bases){
       try{
-        const u=location.origin+"/resolve?upc="+encodeURIComponent(upc||"")+(name?("&q="+encodeURIComponent(name)):"");
+        const u=base+"/resolve?upc="+encodeURIComponent(upc||"")+(name?("&q="+encodeURIComponent(name)):"");
         const r=await fetch(u,{cache:"no-store"});
         if(r.ok){const j=await r.json();if(j&&j.sku)return {sku:String(j.sku),name:j.name||name,image:j.image||j.imageUrl||""};}
       }catch(e){}
@@ -1690,6 +1699,9 @@ function showTab(name){
   // restore the last-used workflow, and re-render when it changes
   try{const w=localStorage.getItem(WFKEY);if(w&&WF[w])$("scanWorkflow").value=w;}catch(e){}
   $("scanWorkflow").addEventListener("change",()=>{try{localStorage.setItem(WFKEY,$("scanWorkflow").value);}catch(e){}render();});
+  // remember the optional sync-server URL used for World Market lookups
+  try{const sv=localStorage.getItem("wm_resolver");if(sv){$("scanServer").value=sv;$("scanCfg").open=true;}}catch(e){}
+  $("scanServer").addEventListener("change",()=>{try{localStorage.setItem("wm_resolver",$("scanServer").value.trim());}catch(e){}});
   $("scanAdd").addEventListener("click",()=>{if(addCode($("scanCode").value,$("scanName").value)){$("scanCode").value="";$("scanName").value="";$("scanCode").focus();}});
   $("scanCode").addEventListener("keydown",e=>{if(e.key==="Enter"){e.preventDefault();$("scanAdd").click();}});
   $("scanList").addEventListener("click",e=>{const b=e.target.closest("button.rm");if(!b)return;buf.splice(+b.dataset.i,1);save();render();});
