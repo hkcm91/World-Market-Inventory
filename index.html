@@ -176,6 +176,11 @@
   .arcbox{width:28px;height:28px;accent-color:var(--accent2);cursor:pointer}
   .arcmeta{font-size:13px;color:var(--muted);margin-top:7px}
   .strip.arc .desc{min-height:0}
+  /* archive entries: SKU keeps one line, action buttons take their own row */
+  .strip.arc .striphead{flex-wrap:wrap}
+  .strip.arc .sku{font-size:20px;word-break:normal;flex:1 1 55%}
+  .strip.arc .striphead .pill{flex:1;height:44px}
+  .arcgo{background:var(--accent2);border-color:var(--accent2);color:#fff;font-weight:800}
   /* ---- scan tab ---- */
   .scanwrap .cam{position:relative;width:100%;background:#000;border:1px solid var(--line);border-radius:14px;overflow:hidden;aspect-ratio:4/3;min-height:160px;display:flex;align-items:center;justify-content:center;margin-top:12px}
   .scanwrap .cam video{width:100%;height:100%;object-fit:cover;display:none}
@@ -205,7 +210,7 @@
 </style>
 </head>
 <body>
-<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-13.12</span></h1></header>
+<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-14.1</span></h1></header>
 <div class="tabs">
   <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
   <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
@@ -774,7 +779,7 @@ function showTab(name){
     list.innerHTML=archive.map((r,a)=>{
       const when=r.archivedAt?new Date(r.archivedAt).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'';
       return '<div class="strip arc"><div class="striphead"><label class="selwrap"><input type="checkbox" class="arcbox" data-a="'+a+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div>'
-        +'<button class="pill sm" data-a="'+a+'" data-act="arcrestore" style="color:var(--accent)">&#8617; Restore</button>'
+        +'<button class="pill sm arcgo" data-a="'+a+'" data-act="arcrestore">&#8617; Restore</button>'
         +'<button class="pill sm" data-a="'+a+'" data-act="arcscan">&#128247;'+(r.barcode?' &#10003;':'')+'</button>'
         +'<button class="pill sm" data-a="'+a+'" data-act="arcremove">Remove</button></div>'
         +'<div class="desc">'+escq(r.desc||"")+'</div>'
@@ -791,11 +796,11 @@ function showTab(name){
     const set=new Set(indices);
     const back=archive.filter((r,a)=>set.has(a));
     if(!back.length)return;
-    back.forEach(r=>{rows.push({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||userPhotos[String(r.sku)]||"",done:false,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||""});});
+    back.forEach(r=>{rows.push({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||userPhotos[String(r.sku)]||"",done:false,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||"",sel:true});});
     mergeDuplicates();
     archive=archive.filter((r,a)=>!set.has(a));
     persist();saveArchive();render();
-    toast(back.length+" restored &rarr; back on the Labels tab");
+    toast(back.length+" restored &rarr; on Labels, already selected to print");
   }
   document.getElementById("archiveBtn").addEventListener("click",archiveSelected);
   // Restore: the checked entries — or, with nothing checked, offer to bring back
