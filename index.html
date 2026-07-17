@@ -1645,12 +1645,30 @@ function showTab(name){
       return nm.replace(/\s+/g," ").toUpperCase().slice(0,60);   // match the store's label style
     }catch(e){return null;}
   }
+  // Make sense of a GS1-128 case/pick-ticket barcode. Strips the AIM symbology id (]C1, ]e0…),
+  // pulls a GTIN (product) if present, flags an SSCC (shipping code, no product), reads an AI-17
+  // expiry. Returns {kind:'sscc'|'gtin'|'plain', product, exp}.
+  function classifyScan(raw){
+    let s=String(raw||"").replace(/\s+/g,"").trim().replace(/^\][A-Za-z][A-Za-z0-9]/,"");   // drop ]C1 etc.
+    const res={kind:"plain",product:"",exp:""};
+    if(/^00\d{18}$/.test(s)){res.kind="sscc";return res;}          // SSCC-18 shipping/case serial
+    let m=s.match(/^01(\d{14})/);                                  // GTIN-14
+    if(m){res.kind="gtin";res.product=gtinToUpc(m[1]);const e=s.slice(16).match(/17(\d{6})/);if(e)res.exp=gs1Date(e[1]);return res;}
+    const d=s.replace(/\D/g,"");
+    if(d===s&&d.length>=8&&d.length<=14){res.kind="gtin";res.product=gtinToUpc(d);}   // bare UPC/EAN/GTIN
+    return res;
+  }
+  function gtinToUpc(g){g=String(g).replace(/\D/g,"");if(g.length===14)g=g.slice(1);return g.replace(/^0+(?=\d{12,})/,"");}
+  function gs1Date(v){const d=v.slice(4,6);return d==="00"?"":("20"+v.slice(0,2)+"-"+v.slice(2,4)+"-"+d);}
   function addCode(code,name){
-    code=String(code||"").replace(/\s+/g,"").trim(); if(!code)return false;
-    const sku=resolveSku(code)||code;                    // map the barcode to a known SKU when we can
+    if(!String(code||"").trim())return false;
+    const g=classifyScan(code);
+    if(g.kind==="sscc"){ flash("That's the shipping/case barcode (no product info). Scan the smaller Retail UPC, or tap ✨ Read box for the SKU."); return false; }
+    const norm=g.product||String(code).replace(/\s+/g,"").replace(/^\][A-Za-z][A-Za-z0-9]/,"").trim();
+    const sku=resolveSku(norm)||norm;                    // map the barcode to a known SKU when we can
     if(buf.some(b=>b.sku===sku)){flash("Already listed: "+sku);return false;}
     const info=lookup(sku);
-    buf.unshift({sku,name:String(name||"").trim()||info.name,qty:info.qty,known:info.known}); save(); render();
+    buf.unshift({sku,name:String(name||"").trim()||info.name,qty:info.qty,exp:g.exp||"",known:info.known}); save(); render();
     if(info.known){flash("✓ "+(info.name||sku));return true;}
     if(buf[0].name){return true;}                         // name provided manually — nothing to fetch
     const dig=String(sku).replace(/\D/g,"");
@@ -1819,7 +1837,9 @@ function showTab(name){
   function parseBox(text){
     const raw=String(text||"");
     const lines=raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    const nums=raw.match(/\d+/g)||[];
+    // Ignore control numbers on pick tickets (CTL#, WAVE#/MAVE#, BOX#) so they aren't mistaken for the SKU.
+    const noctl=raw.replace(/\b(?:CTL|WAV?E|MAV?E|BOX|PKT|CASE)\s*[#:]?\s*\d+/gi," ");
+    const nums=noctl.match(/\d+/g)||[];
     let sku="";
     let m=raw.match(/\bSKU\D{0,4}(\d{5,6})\b/i); if(m)sku=m[1];
     if(!sku)sku=nums.find(n=>n.length===6)||nums.find(n=>n.length===5)||"";
