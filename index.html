@@ -20,7 +20,7 @@
   header{padding:16px 18px;background:var(--accent);color:#fff}
   header h1{margin:0;font-size:21px;font-weight:800;letter-spacing:.2px}
   .tabs{display:flex;background:var(--accent);border-top:1px solid rgba(255,255,255,.18);position:sticky;top:0;z-index:15}
-  .tab{flex:1;padding:16px 10px;text-align:center;color:rgba(255,255,255,.62);font-weight:800;font-size:16px;cursor:pointer;border:0;background:none}
+  .tab{flex:1;min-width:0;padding:16px 6px;text-align:center;color:rgba(255,255,255,.62);font-weight:800;font-size:15px;cursor:pointer;border:0;background:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .tab.active{color:#fff;box-shadow:inset 0 -4px 0 #fff}
   .wrap{max-width:820px;margin:0 auto;padding:16px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:16px;
@@ -207,14 +207,35 @@
   .scanitem button.rm{border:1px solid rgba(255,107,107,.42);background:var(--card2);color:var(--danger);border-radius:9px;height:42px;min-height:42px;padding:0 14px;font-weight:800;cursor:pointer}
   .scanempty{color:var(--muted);text-align:center;padding:18px;font-size:15px}
   #scanImport:disabled,#scanClear:disabled{opacity:.45}
+  /* ---- decode tab (undecoded food → archive) ---- */
+  .decempty{color:var(--muted);text-align:center;padding:18px;font-size:15px}
+  .decitem{display:flex;flex-direction:column;gap:11px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;box-shadow:var(--shadow)}
+  .decitem.ready{border-color:var(--ok);box-shadow:0 0 0 1px rgba(92,192,138,.35),var(--shadow)}
+  .dectop{display:flex;gap:12px;align-items:flex-start}
+  .decthumb{width:64px;height:64px;border-radius:10px;border:1px solid var(--line);background:var(--card2) no-repeat center/cover;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:9px;letter-spacing:.06em;text-align:center;line-height:1.1}
+  .decmeta{flex:1;min-width:0;display:flex;flex-direction:column;gap:6px}
+  .decitem input.decname{width:100%;padding:11px;border:1px solid var(--line);border-radius:9px;font-size:16px;background:var(--card2);color:var(--ink)}
+  .decbarcode{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;word-break:break-all}
+  .decfields{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+  .decfield{display:flex;flex-direction:column;gap:5px}
+  .decfield .lbl{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-l);font-weight:800}
+  .decitem input.decsku{width:120px;padding:11px;border:1px solid var(--line);border-radius:9px;font-size:18px;font-weight:800;background:var(--card2);color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:.06em}
+  .decitem input.decsku.good{border-color:var(--ok)}
+  .decitem input.decqty{width:84px;padding:11px;border:1px solid var(--line);border-radius:9px;font-size:16px;background:var(--card2);color:var(--ink);text-align:center;font-variant-numeric:tabular-nums;-moz-appearance:textfield}
+  .decitem input.decqty::-webkit-outer-spin-button,.decitem input.decqty::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+  .decacts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .decacts .pill{cursor:pointer}
+  .decacts .decapprove{background:var(--ok);border-color:var(--ok);color:#0c1a12;font-weight:800}
+  .decacts .decapprove:disabled{opacity:.4;cursor:not-allowed;background:var(--card2);color:var(--muted);border-color:var(--line)}
 </style>
 </head>
 <body>
-<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-14.1</span></h1></header>
+<header><h1>World Market Inventory &middot; Store 071 <span style="font-size:11px;font-weight:600;opacity:.55;vertical-align:middle">v2026-07-20.1</span></h1></header>
 <div class="tabs">
   <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
   <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
   <button class="tab" id="tab-scan" onclick="showTab('scan')">Scan</button>
+  <button class="tab" id="tab-decode" onclick="showTab('decode')">Decode</button>
   <button class="tab" id="tab-archive" onclick="showTab('archive')">Archive</button>
 </div>
 
@@ -287,6 +308,7 @@
       <label class="wflabel" for="scanWorkflow">Workflow</label>
       <select id="scanWorkflow" class="wfselect">
         <option value="topstock">Top Stock Inventory</option>
+        <option value="decode">Food to decode (back of item)</option>
         <option value="expiry">Expiry Log</option>
         <option value="preview">Preview only (just look up)</option>
       </select>
@@ -327,6 +349,19 @@
       <button class="pill" id="scanClear" style="cursor:pointer">Clear list</button>
     </div>
   </div>
+</div></div>
+
+<!-- ===================== DECODE TAB ===================== -->
+<div class="tabpage" id="page-decode"><div class="wrap decwrap">
+  <div class="card">
+    <h2>Food to decode <span class="badge" id="decCount">0</span></h2>
+    <p class="note" style="margin-top:0">Scan the <b>back</b> of a food item on the <b>Scan</b> tab with the <b>Food to decode</b> workflow and it lands here as an <b>undecoded</b> product. For each one, get its <b>World Market SKU</b> (6 digits, sometimes 5) and <b>product image</b> from worldmarket.com &mdash; tap <b>&#128269; Look up</b> to try automatically, or type the SKU and <b>add the image</b> by hand. When an item has both a valid SKU and an image it turns green; tap <b>&#10003; Approve</b> (or <b>Approve all ready</b>) to move it into the <b>Archive</b>.</p>
+    <div class="scanrow" style="margin-top:4px">
+      <button class="pill decapprove" id="decApproveAll" style="cursor:pointer">&#10003; Approve all ready</button>
+      <button class="pill" id="decClear" style="cursor:pointer">Clear list</button>
+    </div>
+  </div>
+  <div id="decList"><div class="decempty">Nothing to decode yet.</div></div>
 </div></div>
 
 <!-- ===================== ARCHIVE TAB ===================== -->
@@ -493,7 +528,7 @@ load();render();
 
 /* ================= TABS ================= */
 function showTab(name){
-  ['labels','expiry','scan','archive'].forEach(function(n){
+  ['labels','expiry','scan','decode','archive'].forEach(function(n){
     document.getElementById('tab-'+n).classList.toggle('active',name===n);
     document.getElementById('page-'+n).classList.toggle('show',name===n);
   });
@@ -503,6 +538,7 @@ function showTab(name){
   document.getElementById('lbarArc').style.display = name==='archive' ? 'contents' : 'none';
   if(name!=='labels') document.getElementById('applyBar').classList.remove('show');
   if(window.wmScanOnTab) window.wmScanOnTab(name==='scan');   // start/stop the camera with the tab
+  if(name==='decode'&&window.wmDecodeRender) window.wmDecodeRender();
 }
 
 /* ================= LABELS BUILDER ================= */
@@ -574,7 +610,7 @@ function showTab(name){
   // Archive: entries stashed out of the active list to be restored when relevant again.
   let archive=[]; try{archive=JSON.parse(localStorage.getItem(ARCKEY))||[];}catch(e){archive=[];}
   if(!Array.isArray(archive))archive=[];
-  function cleanArc(r){return {sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:keepImg(r.img),behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||"",printed:!!r.printed,archivedAt:r.archivedAt||Date.now()};}
+  function cleanArc(r){return {sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:keepImg(r.img),behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||"",printed:!!r.printed,decoded:!!r.decoded,archivedAt:r.archivedAt||Date.now()};}
   function saveArchive(){try{localStorage.setItem(ARCKEY,JSON.stringify(archive.map(cleanArc)));}catch(e){storageAlert();}}
   function syncCatalog(){rows.forEach(r=>{const c=catalog[r.sku]||{};catalog[r.sku]={desc:r.desc||c.desc||"",perBox:(r.perBox!==undefined&&r.perBox!=="")?intOf(r.perBox):(c.perBox!==undefined?c.perBox:12),img:r.img||c.img||"",price:r.price||c.price||"",country:r.country||c.country||"",codes:r.codes||c.codes||"",barcode:r.barcode||c.barcode||"",bay:r.bay||c.bay||""};});saveCatalog();}
   function catalogGet(sku){return catalog[String(sku)]||null;}
@@ -783,7 +819,7 @@ function showTab(name){
         +'<button class="pill sm" data-a="'+a+'" data-act="arcscan">&#128247;'+(r.barcode?' &#10003;':'')+'</button>'
         +'<button class="pill sm" data-a="'+a+'" data-act="arcremove">Remove</button></div>'
         +'<div class="desc">'+escq(r.desc||"")+'</div>'
-        +'<div class="arcmeta">Qty/box '+intOf(r.perBox)+(r.expiry?(' &middot; exp '+escq(r.expiry)):'')+(r.printed?' &middot; &#10003; printed':'')+(when?(' &middot; archived '+when):'')+'</div></div>';
+        +'<div class="arcmeta">Qty/box '+intOf(r.perBox)+(r.expiry?(' &middot; exp '+escq(r.expiry)):'')+(r.decoded?' &middot; &#10003; decoded':'')+(r.printed?' &middot; &#10003; printed':'')+(when?(' &middot; archived '+when):'')+'</div></div>';
     }).join("");
   }
   function archiveSelected(){
@@ -850,6 +886,24 @@ function showTab(name){
     return {added,updated};
   };
   window.wmCatalogGet=function(sku){return catalogGet(sku);};
+  window.wmToast=toast;   // let other modules (Decode) surface the same toast
+  // Approve a decoded item straight into the Archive: remembers it in the catalog,
+  // keeps its image (URL in the archive entry; uploaded data-URIs go to userPhotos so
+  // they survive reload), and refreshes the Archive tab. Used by the Decode tab.
+  window.wmArchiveAdd=function(e){
+    const sku=String(e&&e.sku||"").replace(/\D/g,"").trim(); if(!sku)return false;
+    const desc=String(e.desc||e.name||"").trim();
+    const img=String(e.img||"").trim();
+    const barcode=String(e.barcode||"").trim();
+    const perBox=(e.perBox!==undefined&&e.perBox!=="")?intOf(e.perBox):undefined;
+    if(/^data:/i.test(img)){try{userPhotos[sku]=img;saveUserPhotos();}catch(x){}}   // uploaded image → survives reload
+    const c=catalog[sku]||{};
+    catalog[sku]={desc:desc||c.desc||"",perBox:(perBox!==undefined?perBox:(c.perBox!==undefined?c.perBox:12)),img:keepImg(img)||c.img||"",price:c.price||"",country:c.country||"",codes:c.codes||"",barcode:barcode||c.barcode||"",bay:c.bay||""};
+    saveCatalog();
+    archive.unshift(cleanArc({sku,desc:desc,perBox:(perBox!==undefined?perBox:12),expiry:"",img:img,behind:0,copies:1,barcode:barcode,printed:false,decoded:true,archivedAt:Date.now()}));
+    saveArchive();render();
+    return true;
+  };
 
   /* ---- Selection helpers: build a PDF one sheet (PER_PAGE) at a time ---- */
   document.getElementById("selNext").textContent="Select next "+PER_PAGE;
@@ -1584,7 +1638,7 @@ function showTab(name){
 (function(){
   const SBKEY="wm_scan_buffer_v1", WFKEY="wm_scan_workflow";
   // Workflows: what a scan is for, and where Import sends the batch.
-  const WF={topstock:{label:"Top Stock Inventory",dest:"labels"},expiry:{label:"Expiry Log",dest:"expiry"},preview:{label:"Preview only",dest:null}};
+  const WF={topstock:{label:"Top Stock Inventory",dest:"labels"},decode:{label:"Food to decode",dest:"decode"},expiry:{label:"Expiry Log",dest:"expiry"},preview:{label:"Preview only",dest:null}};
   let buf=[]; try{buf=JSON.parse(localStorage.getItem(SBKEY))||[];}catch(e){buf=[];} if(!Array.isArray(buf))buf=[];
   function save(){try{localStorage.setItem(SBKEY,JSON.stringify(buf));}catch(e){}}
   const $=id=>document.getElementById(id);
@@ -1701,6 +1755,7 @@ function showTab(name){
     }
     flash(off?("found: "+off):(barcode+" — not found; type a name"));
   }
+  window.wmResolveProduct=wmResolve;   // Decode tab reuses the World Market SKU + image lookup
   // restore the last-used workflow, and re-render when it changes
   try{const w=localStorage.getItem(WFKEY);if(w&&WF[w])$("scanWorkflow").value=w;}catch(e){}
   $("scanWorkflow").addEventListener("change",()=>{try{localStorage.setItem(WFKEY,$("scanWorkflow").value);}catch(e){}render();});
@@ -1722,6 +1777,23 @@ function showTab(name){
       buf=[];save();render();
       alert("Top Stock Inventory: "+r.added+" added"+(r.updated?(", "+r.updated+" updated (already on the list)"):"")+".");
       if(r.added||r.updated)showTab("labels");
+      return;
+    }
+    if(dest==="decode"&&window.wmDecodeAdd){
+      // Back-of-item scans: the scanned code is the product UPC (barcode). If the phone
+      // enrichment already promoted it to a World Market SKU it stored the UPC on b.barcode
+      // and b.sku is the 5–6 digit SKU — pre-fill it; otherwise the UPC stays as the barcode
+      // to decode. Carry any name / qty / image found along too.
+      const items=buf.map(b=>{
+        const raw=String(b.sku||"");
+        const digits=raw.replace(/\D/g,"");
+        const promoted=!!b.barcode&&digits.length>=5&&digits.length<=6;   // enrichment found a WM SKU
+        return {barcode:String(b.barcode||"")||raw,sku:promoted?digits:"",name:b.name||"",qty:b.qty||"",img:b.wmImg||""};
+      });
+      const r=window.wmDecodeAdd(items);
+      buf=[];save();render();
+      alert("Food to decode: "+r.added+" added"+(r.dup?(", "+r.dup+" already in the list"):"")+".");
+      if(r.added)showTab("decode");
       return;
     }
     if(dest==="expiry"&&window.expiryAddItems){
@@ -1874,6 +1946,161 @@ function showTab(name){
   window.wmScanOnTab=function(active){if(!active)stop();};   // showTab stops the camera when you leave Scan
   window.addEventListener("pagehide",stop);
   if(!supported()){$("scanPh").innerHTML='Live scanning needs Chrome/Edge on Android (or another Chromium browser).<br>You can still <b>type or paste</b> codes below.';}
+  render();
+})();
+
+/* ================= DECODE: undecoded food → World Market SKU + image → Archive ================= */
+(function(){
+  const DQKEY="wm_decode_queue_v1";
+  let q=[]; try{q=JSON.parse(localStorage.getItem(DQKEY))||[];}catch(e){q=[];} if(!Array.isArray(q))q=[];
+  const $=id=>document.getElementById(id);
+  function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
+  function clean(it){return {barcode:String(it.barcode||""),sku:String(it.sku||""),name:String(it.name||""),qty:(it.qty===""||it.qty==null)?"":it.qty,img:String(it.img||""),addedAt:it.addedAt||Date.now()};}
+  function save(){try{localStorage.setItem(DQKEY,JSON.stringify(q.map(clean)));}catch(e){}}
+  const skuOk=s=>/^\d{5,6}$/.test(String(s||"").trim());
+  const ready=it=>skuOk(it.sku)&&!!String(it.img||"").trim();
+  function toast(m){if(window.wmToast)window.wmToast(m);}
+  // downscale an uploaded image file to a small JPEG data-URI (matches the Labels tab)
+  function fileToThumb(file){return new Promise((res,rej)=>{const fr=new FileReader();fr.onerror=rej;fr.onload=()=>{const im=new Image();im.onerror=rej;im.onload=()=>{const max=240;let w=im.width,h=im.height,s=Math.min(1,max/Math.max(w,h));w=Math.max(1,Math.round(w*s));h=Math.max(1,Math.round(h*s));const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(im,0,0,w,h);try{res(c.toDataURL('image/jpeg',0.72));}catch(e){rej(e);}};im.src=fr.result;};fr.readAsDataURL(file);});}
+
+  // Top-bar summary only (counts, tab badge, Approve-all / Clear state). Cheap enough to
+  // call on every keystroke without rebuilding the whole list (which would steal focus).
+  function updateSummary(){
+    const cnt=$("decCount"); if(cnt)cnt.textContent=q.length;
+    const tab=$("tab-decode"); if(tab)tab.textContent="Decode"+(q.length?" ("+q.length+")":"");
+    const readyN=q.filter(ready).length;
+    const aa=$("decApproveAll"); if(aa){aa.disabled=!readyN;aa.innerHTML="&#10003; Approve all ready"+(readyN?(" ("+readyN+")"):"");}
+    const dc=$("decClear"); if(dc)dc.disabled=!q.length;
+  }
+  // Reflect a single item's SKU-driven state in place — no innerHTML rebuild, so the
+  // field the user is typing in keeps focus (and no blur/innerHTML reentrancy error).
+  function reflectItem(i,el){
+    const it=q[i]; if(!it||!el)return;
+    const rdy=ready(it);
+    el.classList.toggle("ready",rdy);
+    const skuInp=el.querySelector("input.decsku"); if(skuInp)skuInp.classList.toggle("good",skuOk(it.sku));
+    const ap=el.querySelector('.decapprove[data-act="approve"]');
+    if(ap){ap.disabled=!rdy;ap.title=rdy?"Move this item into the Archive":"Needs a valid SKU and an image first";}
+    updateSummary();
+  }
+  function render(){
+    updateSummary();
+    const list=$("decList"); if(!list)return;
+    if(!q.length){list.innerHTML='<div class="decempty">Nothing to decode yet. On the <b>Scan</b> tab, choose the <b>Food to decode</b> workflow and scan the <b>back</b> of a food item.</div>';return;}
+    list.innerHTML=q.map((it,i)=>{
+      const rdy=ready(it),img=String(it.img||"");
+      return '<div class="decitem'+(rdy?' ready':'')+'">'
+        +'<div class="dectop">'
+          +'<div class="decthumb"'+(img?' style="background-image:url(\''+esc(img)+'\')"':'')+'>'+(img?'':'no img')+'</div>'
+          +'<div class="decmeta">'
+            +'<input class="decname" data-i="'+i+'" value="'+esc(it.name||"")+'" placeholder="Product name">'
+            +'<div class="decbarcode">Barcode '+(it.barcode?esc(it.barcode):'<span style="color:var(--danger)">none</span>')+(rdy?' &middot; <span style="color:var(--ok);font-weight:700">ready to approve</span>':'')+'</div>'
+          +'</div>'
+        +'</div>'
+        +'<div class="decfields">'
+          +'<div class="decfield"><span class="lbl">WM SKU (5&ndash;6 digits)</span><input class="decsku'+(skuOk(it.sku)?' good':'')+'" data-i="'+i+'" inputmode="numeric" maxlength="6" value="'+esc(it.sku||"")+'" placeholder="654082"></div>'
+          +'<div class="decfield"><span class="lbl">Qty / box</span><input class="decqty" data-i="'+i+'" type="number" min="0" value="'+(it.qty===""||it.qty==null?"":esc(it.qty))+'"></div>'
+        +'</div>'
+        +'<div class="decacts">'
+          +'<button class="pill" data-i="'+i+'" data-act="lookup" title="Search worldmarket.com for the SKU + product image">&#128269; Look up</button>'
+          +'<label class="pill" title="Add the product image from your photos"><span>&#128247; '+(img?'Replace':'Add')+' image</span><input type="file" accept="image/*" data-i="'+i+'" data-act="img" style="display:none"></label>'
+          +(img?'<button class="pill" data-i="'+i+'" data-act="imgclear">Clear image</button>':'')
+          +'<button class="pill decapprove" data-i="'+i+'" data-act="approve"'+(rdy?'':' disabled')+' title="'+(rdy?'Move this item into the Archive':'Needs a valid SKU and an image first')+'">&#10003; Approve</button>'
+          +'<button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button>'
+        +'</div>'
+      +'</div>';
+    }).join("");
+  }
+
+  async function doLookup(i,btn){
+    const it=q[i]; if(!it)return;
+    if(!window.wmResolveProduct){alert("Lookup isn't available in this build.");return;}
+    const label=btn?btn.innerHTML:""; if(btn){btn.disabled=true;btn.innerHTML="Looking up&hellip;";}
+    toast("Looking up on World Market&hellip;");
+    try{
+      const r=await window.wmResolveProduct(it.barcode||"",it.name||"");
+      if(r){
+        const d=String(r.sku||"").replace(/\D/g,"");
+        if(skuOk(d))it.sku=d.slice(0,6);
+        if(r.name&&!String(it.name||"").trim())it.name=r.name;
+        if(r.image)it.img=r.image;
+        save();render();
+        if(!r.sku&&!r.image)alert("Nothing found on World Market for this item.\nType the 5–6 digit SKU and add the product image by hand.");
+        else toast("World Market"+(skuOk(d)?(" "+d.slice(0,6)):"")+(r.image?" + image":""));
+      }else{
+        alert("Couldn't reach World Market to look this up.\nType the 5–6 digit SKU and add the product image by hand.\n\nTip: set a Sync server under the Scan tab's ⚙️ for reliable lookups.");
+      }
+    }catch(e){alert("Lookup failed: "+((e&&e.message)||"error"));}
+    finally{if(btn){btn.disabled=false;btn.innerHTML=label;}}
+  }
+
+  function approveOne(it){
+    if(!ready(it)||!window.wmArchiveAdd)return false;
+    return window.wmArchiveAdd({sku:String(it.sku).replace(/\D/g,""),name:it.name,desc:it.name,perBox:it.qty,img:it.img,barcode:it.barcode,decoded:true});
+  }
+  function approve(i){
+    const it=q[i]; if(!it)return;
+    if(!ready(it)){alert("This item needs a valid 5–6 digit World Market SKU and a product image before it can be approved.");return;}
+    if(approveOne(it)){q.splice(i,1);save();render();toast("Approved &rarr; moved to Archive");}
+    else alert("Couldn't move this item to the Archive.");
+  }
+  function approveAll(){
+    if(!q.some(ready)){alert("No items are ready yet — each needs a valid SKU and an image.");return;}
+    let n=0;
+    q=q.filter(it=>{ if(approveOne(it)){n++;return false;} return true; });
+    save();render();toast(n+" approved &rarr; moved to Archive");
+  }
+
+  // Hook the Scan tab's Import calls to stage undecoded items here.
+  window.wmDecodeAdd=function(items){
+    if(!Array.isArray(items))return {added:0,dup:0};
+    let added=0,dup=0;
+    items.forEach(it=>{
+      const barcode=String(it&&it.barcode||"").trim();
+      const sku=String(it&&it.sku||"").trim();
+      if(!barcode&&!sku)return;
+      const isDup=q.some(x=>(barcode&&x.barcode===barcode)||(sku&&x.sku&&x.sku===sku)||(barcode&&x.sku===barcode));
+      if(isDup){dup++;return;}
+      q.unshift(clean({barcode,sku:skuOk(sku)?sku:"",name:it.name||"",qty:it.qty||"",img:it.img||"",addedAt:Date.now()}));
+      added++;
+    });
+    if(added)save();
+    render();
+    return {added,dup};
+  };
+  window.wmDecodeRender=render;
+
+  $("decList").addEventListener("click",e=>{
+    const btn=e.target.closest("button[data-act]"); if(!btn)return;
+    const i=+btn.dataset.i,act=btn.dataset.act;
+    if(act==="lookup")doLookup(i,btn);
+    else if(act==="imgclear"){q[i].img="";save();render();}
+    else if(act==="approve")approve(i);
+    else if(act==="rm"){q.splice(i,1);save();render();}
+  });
+  $("decList").addEventListener("input",e=>{
+    const t=e.target,i=+t.dataset.i;
+    if(t.matches("input.decname"))q[i].name=t.value;
+    else if(t.matches("input.decqty"))q[i].qty=t.value;
+    else if(t.matches("input.decsku")){
+      const v=t.value.replace(/\D/g,"").slice(0,6);
+      if(v!==t.value)t.value=v;
+      q[i].sku=v;
+      reflectItem(i,t.closest(".decitem"));   // live, in-place — keeps focus
+    }
+  });
+  // Persist on blur (change). Never rebuild the list from a text field's own change
+  // handler — that removes the focused node mid-blur and throws in Chromium.
+  $("decList").addEventListener("change",e=>{
+    const t=e.target;
+    if(t.matches("input.decname")||t.matches("input.decqty")||t.matches("input.decsku")){save();}
+    else if(t.matches('input[type=file][data-act="img"]')){
+      const f=t.files&&t.files[0]; if(!f)return;
+      fileToThumb(f).then(d=>{q[+t.dataset.i].img=d;save();render();}).catch(()=>alert("Couldn't read that image file."));
+    }
+  });
+  $("decApproveAll").addEventListener("click",approveAll);
+  $("decClear").addEventListener("click",()=>{if(q.length&&confirm("Clear the whole decode list? This can't be undone.")){q=[];save();render();}});
   render();
 })();
 </script>
