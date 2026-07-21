@@ -1350,8 +1350,12 @@ function showTab(name){
   // Product photos ship with the app (photos.json, same origin) and apply themselves on
   // EVERY open — images are memory-only (never in localStorage, see keepImg), so this
   // is what puts them back after each reload. User-added photos win.
+  // Bump PHOTOS_VER whenever photos.json changes — it rides on the fetch URL so the
+  // browser grabs the fresh file instead of serving a stale force-cached copy, while
+  // still downloading it only once per version (not on every open).
+  const PHOTOS_VER="store071-v2";
   function autoloadBundledPhotos(){
-    fetch("photos.json",{cache:"force-cache"}).then(r=>r.ok?r.json():null).then(map=>{
+    fetch("photos.json?v="+PHOTOS_VER,{cache:"force-cache"}).then(r=>r.ok?r.json():null).then(map=>{
       if(!map||typeof map!=="object")return;
       bundledPhotos=map;
       // one-time rescue: custom photos that older versions stored inside the rows
