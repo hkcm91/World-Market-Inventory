@@ -173,6 +173,13 @@
   /* ---- archive ---- */
   .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom));background:var(--card2);color:var(--ink);border:1px solid var(--line);padding:12px 20px;border-radius:999px;font-weight:700;font-size:15px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:60;max-width:90vw;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.5)}
   .toast.show{opacity:1}
+  /* archive search + per-entry quantity */
+  .arcsearch{display:flex;gap:9px;align-items:center;margin:0 0 14px}
+  .arcsearch input{flex:1;min-width:0;padding:14px 16px;border:2px solid var(--accent);border-radius:12px;font-size:17px;color:var(--ink);background:var(--card2);-webkit-appearance:none}
+  .arcsearch input::-webkit-search-cancel-button{-webkit-appearance:none}
+  .arcsearch .pill{cursor:pointer;white-space:nowrap}
+  .arcqty{display:flex;align-items:center;gap:10px;margin-top:9px;flex-wrap:wrap}
+  .arcqty .lbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-l);font-weight:800}
   .arcbox{width:28px;height:28px;accent-color:var(--accent2);cursor:pointer}
   .strip.arc .sthumb{width:38px;height:38px;border-radius:8px;border:1px solid var(--line);background:var(--card2) no-repeat center/cover;flex:0 0 auto;margin-right:4px}
   .arcmeta{font-size:13px;color:var(--muted);margin-top:7px}
@@ -370,8 +377,9 @@
 <!-- ===================== ARCHIVE TAB ===================== -->
 <div class="tabpage" id="page-archive"><div class="wrap">
   <div class="summary" id="asummary"></div>
+  <div class="arcsearch"><input type="search" id="arcSearch" placeholder="&#128269; Search archive by SKU or name&hellip;" autocomplete="off" autocapitalize="off" spellcheck="false"><button class="pill sm" id="arcSearchClear" style="display:none">Clear</button></div>
   <div id="alist"></div>
-  <p class="note">Labels you <b>Mark printed</b> (or <b>Archive</b>) on the Labels tab land here and drop off that list, so Labels always shows only what still needs printing. <b>&#8617; Restore</b> sends an entry back to Labels to print again &mdash; check several and use the Restore button below for a batch, or tap Restore with <b>nothing checked</b> to bring back <b>everything</b> at once. <b>Remove</b> deletes an entry for good.</p>
+  <p class="note"><b>&#128269; Search</b> by SKU or name to find any archived label fast, set <b>how many labels</b> you want with the &minus;/+ stepper, then tap <b>&#8617; Add</b> to send it to the Labels list ready to print. Labels you <b>Mark printed</b> (or <b>Archive</b>) on the Labels tab land here and drop off that list, so Labels always shows only what still needs printing. Check several and use the <b>Restore</b> button below for a batch, or tap Restore with <b>nothing checked</b> to bring back <b>everything</b> at once. <b>Remove</b> deletes an entry for good.</p>
 </div></div>
 
 <div class="applybar" id="applyBar"><span id="applyMsg"></span><button id="applyAll">Apply to all</button><button id="applyDismiss">Dismiss</button></div>
@@ -613,6 +621,7 @@ function showTab(name){
   // Archive: entries stashed out of the active list to be restored when relevant again.
   let archive=[]; try{archive=JSON.parse(localStorage.getItem(ARCKEY))||[];}catch(e){archive=[];}
   if(!Array.isArray(archive))archive=[];
+  let arcQuery="";   // live filter text for the Archive tab search box
   function cleanArc(r){return {sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:keepImg(r.img),behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||"",printed:!!r.printed,decoded:!!r.decoded,archivedAt:r.archivedAt||Date.now()};}
   function saveArchive(){try{localStorage.setItem(ARCKEY,JSON.stringify(archive.map(cleanArc)));}catch(e){storageAlert();}}
   function syncCatalog(){rows.forEach(r=>{const c=catalog[r.sku]||{};catalog[r.sku]={desc:r.desc||c.desc||"",perBox:(r.perBox!==undefined&&r.perBox!=="")?intOf(r.perBox):(c.perBox!==undefined?c.perBox:12),img:r.img||c.img||"",price:r.price||c.price||"",country:r.country||c.country||"",codes:r.codes||c.codes||"",barcode:r.barcode||c.barcode||"",bay:r.bay||c.bay||""};});saveCatalog();}
@@ -782,9 +791,12 @@ function showTab(name){
     if(btn.dataset.act==="arcrestore"){restoreArchived([+btn.dataset.a]);return;}
     if(btn.dataset.act==="arcscan"){const a=+btn.dataset.a;scanBarcodeOnce("Scan barcode \u2014 "+archive[a].sku,code=>{archive[a].barcode=code;saveArchive();render();toast("Barcode saved to "+escq(archive[a].sku));});return;}
     if(btn.dataset.act==="arcremove"){const a=+btn.dataset.a;if(confirm("Permanently remove this archived entry? This can't be undone.")){archive.splice(a,1);saveArchive();render();}return;}
+    // step the "labels to add" count up/down for one archived entry, in place (no re-render \u2192 keeps scroll)
+    if(btn.dataset.qd){const a=+btn.dataset.a;const r=archive[a];r.restoreQty=Math.max(1,arcQtyOf(r)+(+btn.dataset.qd));const inp=btn.parentElement.querySelector("input.arcqtyinp");if(inp)inp.value=r.restoreQty;return;}
   });
   document.getElementById("alist").addEventListener("change",e=>{
-    if(e.target.matches('input.arcbox')){archive[+e.target.dataset.a].sel=e.target.checked;}
+    if(e.target.matches('input.arcbox')){archive[+e.target.dataset.a].sel=e.target.checked;return;}
+    if(e.target.matches('input.arcqtyinp')){const a=+e.target.dataset.a;const v=Math.max(1,intOf(e.target.value)||1);archive[a].restoreQty=v;e.target.value=v;return;}
   });
   // Mark printed acts ONLY on the checked labels — never the whole list — and moves
   // them straight to the archive, so the list always shows just what's left to print.
@@ -813,18 +825,30 @@ function showTab(name){
   // Surface unexpected errors on screen — "nothing happened" taps get a visible reason
   // (and appear in screenshots) instead of dying silently in the console.
   window.addEventListener("error",e=>{try{toast("&#9888; Error: "+String(e.message||e.error||"unknown").slice(0,90));}catch(x){}});
+  // How many labels a "Restore/Add" from the archive should drop onto Labels.
+  // Held per-entry (transient — not persisted) so each row remembers its own count.
+  function arcQtyOf(r){return Math.max(1,intOf(r.restoreQty)||copiesOf(r));}
   function renderArchiveInto(list){
-    if(!archive.length){list.innerHTML='<div class="card empty">Nothing archived yet. On the <b>Labels</b> tab, check labels and tap <b>&#10003; Mark printed</b> (or <b>&#128230; Archive</b>) &mdash; they land here and drop off that list.</div>';return;}
-    list.innerHTML=archive.map((r,a)=>{
+    if(!archive.length){list.innerHTML='<div class="card empty">Nothing archived yet. On the <b>Labels</b> tab, check labels and tap <b>&#10003; Mark printed</b> (or <b>&#128230; Archive</b>) &mdash; they land here and drop off that list.</div>';
+      document.getElementById("arcSearch").style.display="none";document.getElementById("arcSearchClear").style.display="none";return;}
+    document.getElementById("arcSearch").style.display="";
+    document.getElementById("arcSearchClear").style.display=arcQuery?"":"none";
+    const q=arcQuery.trim().toLowerCase();
+    // keep the true archive index (a) with each row so filtering never mis-targets Restore/Remove
+    const items=archive.map((r,a)=>({r,a})).filter(({r})=>!q||String(r.sku).toLowerCase().indexOf(q)>=0||String(r.desc||"").toLowerCase().indexOf(q)>=0);
+    if(!items.length){list.innerHTML='<div class="card empty">No archived label matches &ldquo;<b>'+escq(arcQuery)+'</b>&rdquo;. Try a different SKU or name, or <b>Clear</b> the search.</div>';return;}
+    list.innerHTML=items.map(({r,a})=>{
       const when=r.archivedAt?new Date(r.archivedAt).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'';
       const img=r.img||userPhotos[String(r.sku)]||(bundledPhotos&&bundledPhotos[String(r.sku)])||"";
+      const qty=arcQtyOf(r);
       return '<div class="strip arc"><div class="striphead"><label class="selwrap"><input type="checkbox" class="arcbox" data-a="'+a+'"'+(r.sel?' checked':'')+'></label>'
         +(img?'<span class="sthumb" style="background-image:url(\''+escq(img)+'\')"></span>':'')
         +'<div class="sku">'+escq(r.sku)+'</div>'
-        +'<button class="pill sm arcgo" data-a="'+a+'" data-act="arcrestore">&#8617; Restore</button>'
+        +'<button class="pill sm arcgo" data-a="'+a+'" data-act="arcrestore">&#8617; Add</button>'
         +'<button class="pill sm" data-a="'+a+'" data-act="arcscan">&#128247;'+(r.barcode?' &#10003;':'')+'</button>'
         +'<button class="pill sm" data-a="'+a+'" data-act="arcremove">Remove</button></div>'
         +'<div class="desc">'+escq(r.desc||"")+'</div>'
+        +'<div class="arcqty"><span class="lbl">Labels to add</span><div class="stepper"><button data-a="'+a+'" data-qd="-1">&minus;</button><input type="number" min="1" class="arcqtyinp" value="'+qty+'" data-a="'+a+'"><button data-a="'+a+'" data-qd="1">+</button></div></div>'
         +'<div class="arcmeta">Qty/box '+intOf(r.perBox)+(r.expiry?(' &middot; exp '+escq(r.expiry)):'')+(r.decoded?' &middot; &#10003; decoded':'')+(r.printed?' &middot; &#10003; printed':'')+(when?(' &middot; archived '+when):'')+'</div></div>';
     }).join("");
   }
@@ -838,19 +862,35 @@ function showTab(name){
     const set=new Set(indices);
     const back=archive.filter((r,a)=>set.has(a));
     if(!back.length)return;
-    back.forEach(r=>{rows.push({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||userPhotos[String(r.sku)]||"",done:false,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||"",sel:true});});
+    let totalLabels=0;
+    back.forEach(r=>{const qty=arcQtyOf(r);totalLabels+=qty;rows.push({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||userPhotos[String(r.sku)]||"",done:false,behind:Math.max(0,intOf(r.behind)),copies:qty,price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||"",sel:true});});
     mergeDuplicates();
     archive=archive.filter((r,a)=>!set.has(a));
     persist();saveArchive();render();
-    toast(back.length+" restored &rarr; on Labels, already selected to print");
+    toast(totalLabels+" label"+(totalLabels>1?"s":"")+" from "+back.length+" item"+(back.length>1?"s":"")+" added to Labels &rarr; already selected to print");
   }
   document.getElementById("archiveBtn").addEventListener("click",archiveSelected);
+  // Archive search: filter the list live as you type; re-render only the list so the
+  // search box keeps focus. The Clear button (and Esc) empties it.
+  const arcSearchEl=document.getElementById("arcSearch");
+  arcSearchEl.addEventListener("input",e=>{arcQuery=e.target.value;document.getElementById("arcSearchClear").style.display=arcQuery?"":"none";renderArchiveInto(document.getElementById("alist"));});
+  arcSearchEl.addEventListener("keydown",e=>{if(e.key==="Escape"){arcQuery="";arcSearchEl.value="";document.getElementById("arcSearchClear").style.display="none";renderArchiveInto(document.getElementById("alist"));}});
+  document.getElementById("arcSearchClear").addEventListener("click",()=>{arcQuery="";arcSearchEl.value="";document.getElementById("arcSearchClear").style.display="none";renderArchiveInto(document.getElementById("alist"));arcSearchEl.focus();});
   // Restore: the checked entries — or, with nothing checked, offer to bring back
   // EVERYTHING in one tap (the "unarchive it all" escape hatch).
   document.getElementById("unarchiveBtn").addEventListener("click",()=>{
     if(!archive.length){alert("Nothing is archived.");return;}
     const idx=archive.map((r,a)=>a).filter(a=>archive[a].sel);
     if(idx.length){restoreArchived(idx);return;}
+    // Nothing checked: if a search is active, act on just the matches you can see;
+    // otherwise fall back to the "bring back everything" escape hatch.
+    const q=arcQuery.trim().toLowerCase();
+    const visible=archive.map((r,a)=>a).filter(a=>{const r=archive[a];return !q||String(r.sku).toLowerCase().indexOf(q)>=0||String(r.desc||"").toLowerCase().indexOf(q)>=0;});
+    if(q){
+      if(!visible.length){alert("No archived label matches your search.");return;}
+      if(confirm("Add all "+visible.length+" label"+(visible.length>1?"s":"")+" matching “"+arcQuery+"” back to Labels?"))restoreArchived(visible);
+      return;
+    }
     if(confirm("Restore ALL "+archive.length+" archived entr"+(archive.length>1?"ies":"y")+" back to Labels?"))
       restoreArchived(archive.map((r,a)=>a));
   });
