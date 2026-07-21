@@ -1970,37 +1970,53 @@ function showTab(name){
   // grabbing the first 5-6 digit number (which is often the CIL#/wave#, not the SKU).
   const HEADER=/^(SKU|UPC|QTY|EXP|BEST|USE\s*BY|LOT|BB|CIL|HAVE|WAVE|PKT|BOX|WPT|SZ|CASE)\b/i;
   const NONSKU=/(CIL|HAVE|WAVE|PKT|BOX|\bSZ\b)/i;
+  // A size/weight token (8OZ, 5.29Z, 250ML, 12CT…) is a strong "this is the product line" signal —
+  // it lets the real description win over a brand/company header on varied brand labels.
+  const UNIT=/\d\s*(?:OZ|Z|ML|L|GR?|KG|LBS?|CT|CNT|PK|PCS?|COUNT|FL\s*OZ)\b/i;
   function parseBox(text){
     const raw=String(text||"");
     const lines=raw.split(/\r?\n/).map(s=>s.replace(/\s+/g," ").trim()).filter(Boolean);
     // Description candidates: mostly-letters lines that aren't headers. We do NOT drop lines that
     // start with a digit — on these labels the item # leads the description ("605268 BISCOFF ...").
+    const letc=l=>(l.match(/[A-Za-z]/g)||[]).length;
     const nameLines=lines.filter(l=>{
       if(l.length<3||HEADER.test(l))return false;
-      const letters=(l.match(/[A-Za-z]/g)||[]).length;
+      const letters=letc(l);
       return letters>=3 && letters>=l.length*0.5;
-    }).sort((a,b)=>((b.match(/[A-Za-z]/g)||[]).length)-((a.match(/[A-Za-z]/g)||[]).length));
+    }).sort((a,b)=>{
+      const ua=UNIT.test(a)?1:0,ub=UNIT.test(b)?1:0;   // product line (has a size) beats a company header
+      return ua!==ub?ub-ua:letc(b)-letc(a);
+    });
     let name="",sku="";
-    // 1) Prefer the description line that carries a 5-6 digit item # (SKU + description share a line
-    //    on these labels: "605268 BISCOFF ..."). This beats the brand/manufacturer header up top.
+    // Brand labels vary in layout but all print the same 5-6 digit World Market SKU. Find it by
+    // signal strength, most trustworthy first, so no single brand's layout is hard-coded.
+    // A) An explicit label wins: "WM SKU / SKU / ITEM # 605268" (CIL#/WAVE# are excluded elsewhere).
+    {const m=raw.match(/\b(?:WM\s*SKU|SKU|ITEM)\b\D{0,6}(\d{5,6})\b/i);if(m)sku=m[1];}
+    // B) The description line that carries a 5-6 digit item # (SKU + description share a line:
+    //    "605268 BISCOFF ..."). Sets the name either way; supplies the SKU if A didn't.
     const withNum=nameLines.filter(l=>/\b\d{5,6}\b/.test(l));
     if(withNum.length){
-      name=withNum[0];const m=name.match(/\b(\d{5,6})\b/);sku=m[1];name=name.replace(m[0]," ");
+      name=withNum[0];const m=name.match(/\b(\d{5,6})\b/);if(!sku)sku=m[1];name=name.replace(m[1]," ");
     }else{
       name=nameLines.length?nameLines[0]:"";
     }
-    // 2) explicit "SKU 123456".
-    if(!sku){const m=raw.match(/\bSKU\D{0,4}(\d{5,6})\b/i);if(m)sku=m[1];}
-    // 3) a lone item # printed on the line just above/below the description.
+    // C) A lone item # printed on the line just above/below the description.
     if(!sku && name){
-      const idx=lines.findIndex(l=>l.indexOf(name.slice(0,8))>=0);
+      const idx=lines.findIndex(l=>l.indexOf(name.trim().slice(0,8))>=0);
       for(const j of [idx-1,idx+1]){
         if(j>=0 && j<lines.length && !HEADER.test(lines[j])){
           const m=lines[j].match(/^\s*(\d{5,6})\s*$/);if(m){sku=m[1];break;}
         }
       }
     }
-    // 4) fallback: first 6- then 5-digit number, skipping CIL#/wave#/box lines.
+    // D) Validate against the World Market catalog: if a candidate number is a SKU we already know,
+    //    trust it. Nails restocks of known items; harmless for brand-new ones (no catalog entry).
+    if(!sku){
+      const g=(typeof window!=="undefined")&&window.wmCatalogGet;
+      if(g){const nums=(lines.filter(l=>!NONSKU.test(l)).join(" ").match(/\b\d{5,6}\b/g))||[];
+        const known=nums.find(n=>g(n));if(known)sku=known;}
+    }
+    // E) fallback: first 6- then 5-digit number, skipping CIL#/wave#/box lines.
     if(!sku){
       const nums=(lines.filter(l=>!NONSKU.test(l)).join(" ").match(/\d+/g))||[];
       sku=nums.find(n=>n.length===6)||nums.find(n=>n.length===5)||"";
