@@ -305,6 +305,11 @@
     </div>
     <button class="send" id="fAdd">Add strip</button>
   </div>
+  <button class="add-toggle" id="moreToggle">+ Add &ldquo;N MORE&rdquo; tags</button>
+  <div class="add-form" id="moreForm">
+    <div><label>How many? Makes plain tags &ldquo;1 MORE&rdquo; &hellip; &ldquo;N MORE&rdquo; &mdash; no SKU, name or qty</label><input id="fMore" inputmode="numeric" value="4"></div>
+    <button class="send" id="fMoreAdd">Add tags</button>
+  </div>
   <p class="note"><b>Print at 100% / Actual Size with "Fit to page" OFF</b> &mdash; anything less shrinks the sheet and the rows drift out of the labels. Each card is one product; <b>Copies</b> (the &times;N badge) is how many of that label print &mdash; duplicates fold into one card automatically. <b>Qty/box</b> prints on the label; set 0 for no number. Full description prints on its own line and auto-fits so it never gets cut off. Set a date to print a third line and to include it in <b>Move dated &rarr; Expiry</b>. Switch to the <b>Photo</b> template to print a product image on each label &mdash; photos load automatically for items World Market carries online; add your own for the rest with <b>Add photo</b>. Tap <b>&#127908; Say date</b> to speak an expiry (e.g. &ldquo;August twelfth twenty twenty six&rdquo;). <b>Check</b> the labels you want, hit Download, then <b>Mark printed</b> &mdash; it takes <b>only the checked ones</b>, moves them to the <b>Archive</b> tab and drops them off this list, so this list always shows just what&rsquo;s left to print. Restore anything from the Archive tab whenever you need it again. Set <b>Behind</b> to how many boxes of that SKU sit behind the front one and it auto-adds &ldquo;1 BEHIND&rdquo;, &ldquo;2 BEHIND&rdquo;&hellip; stock-depth labels after it. SKU info (name, qty/box, photo) is remembered, so re-adding a SKU auto-fills. <b>Backup</b> saves everything to a file; <b>Restore</b> brings it back. Everything saves on this device.</p>
 </div></div>
 
@@ -747,7 +752,7 @@ function showTab(name){
   let arcQuery="";   // live filter text for the Archive tab search box
   function cleanArc(r){return {sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:keepImg(r.img),behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||"",printed:!!r.printed,decoded:!!r.decoded,archivedAt:r.archivedAt||Date.now()};}
   function saveArchive(){try{localStorage.setItem(ARCKEY,JSON.stringify(archive.map(cleanArc)));}catch(e){storageAlert();}}
-  function syncCatalog(){rows.forEach(r=>{const c=catalog[r.sku]||{};catalog[r.sku]={desc:r.desc||c.desc||"",perBox:(r.perBox!==undefined&&r.perBox!=="")?intOf(r.perBox):(c.perBox!==undefined?c.perBox:12),img:r.img||c.img||"",price:r.price||c.price||"",country:r.country||c.country||"",codes:r.codes||c.codes||"",barcode:r.barcode||c.barcode||"",bay:r.bay||c.bay||""};});saveCatalog();}
+  function syncCatalog(){rows.forEach(r=>{if(r.isMore||!r.sku)return;const c=catalog[r.sku]||{};catalog[r.sku]={desc:r.desc||c.desc||"",perBox:(r.perBox!==undefined&&r.perBox!=="")?intOf(r.perBox):(c.perBox!==undefined?c.perBox:12),img:r.img||c.img||"",price:r.price||c.price||"",country:r.country||c.country||"",codes:r.codes||c.codes||"",barcode:r.barcode||c.barcode||"",bay:r.bay||c.bay||""};});saveCatalog();}
   function catalogGet(sku){return catalog[String(sku)]||null;}
   function intOf(v){return Math.max(0,parseInt(v)||0);}
   function copiesOf(r){return Math.max(1,intOf(r.copies)||1);}
@@ -758,6 +763,7 @@ function showTab(name){
   function mergeDuplicates(){
     const seen=new Map(),out=[];
     rows.forEach(r=>{
+      if(r.isMore){out.push(r);return;}                    // "N MORE" tags are standalone — never fold
       const k=r.sku+"|"+(r.expiry||"")+"|"+intOf(r.perBox);
       const hit=seen.get(k);
       if(hit){hit.copies=copiesOf(hit)+copiesOf(r);hit.behind=Math.max(intOf(hit.behind),intOf(r.behind));if(!hit.img&&r.img)hit.img=r.img;if(!hit.desc&&r.desc)hit.desc=r.desc;if(!hit.price&&r.price)hit.price=r.price;if(!hit.country&&r.country)hit.country=r.country;if(!hit.codes&&r.codes)hit.codes=r.codes;if(!hit.barcode&&r.barcode)hit.barcode=r.barcode;if(!hit.bay&&r.bay)hit.bay=r.bay;hit.sel=hit.sel||r.sel;}
@@ -768,7 +774,7 @@ function showTab(name){
   function loadRows(){
     let saved=null; try{saved=JSON.parse(localStorage.getItem(KEY));}catch(e){}
     if(Array.isArray(saved)&&(saved.length||archive.length)){
-      rows=saved.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||""}));
+      rows=saved.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||"",isMore:!!r.isMore,num:intOf(r.num)}));
       // archived SKUs count as present too, so printed-and-archived items don't respawn from the seed
       const present=new Set(rows.map(r=>r.sku));
       archive.forEach(r=>present.add(String(r.sku)));
@@ -790,7 +796,7 @@ function showTab(name){
   }
   // persist a clean projection (drops the transient print-selection flag) and keep the catalog in sync
   function persist(){
-    try{localStorage.setItem(KEY,JSON.stringify(rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:keepImg(r.img),done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:copiesOf(r),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||""}))));}
+    try{localStorage.setItem(KEY,JSON.stringify(rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:keepImg(r.img),done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:copiesOf(r),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||"",isMore:!!r.isMore,num:intOf(r.num)}))));}
     catch(e){storageAlert();}
     syncCatalog();
   }
@@ -811,13 +817,13 @@ function showTab(name){
     return n;
   }
   window.wmLabelsApplyImages=applyImages;   // hook the backend/MCP sync can call
-  function totals(){const strips=rows.reduce((s,r)=>s+copiesOf(r),0);const skus=new Set(rows.map(r=>r.sku)).size;const dated=rows.filter(r=>r.expiry).length;const sel=rows.filter(r=>r.sel).length;const printCount=expand(printSet()).length;return {skus,strips,dated,sel,printCount,pages:Math.max(1,Math.ceil(Math.max(1,printCount)/PER_PAGE))};}
+  function totals(){const strips=rows.reduce((s,r)=>s+(r.isMore?1:copiesOf(r)),0);const skus=new Set(rows.filter(r=>!r.isMore).map(r=>r.sku)).size;const dated=rows.filter(r=>r.expiry).length;const sel=rows.filter(r=>r.sel).length;const printCount=expand(printSet()).length;return {skus,strips,dated,sel,printCount,pages:Math.max(1,Math.ceil(Math.max(1,printCount)/PER_PAGE))};}
   // which rows will print: the checked ones if any; otherwise the whole list
   // (everything still here is by definition not printed yet)
   function printSet(){const sel=rows.filter(r=>r.sel);if(sel.length)return sel;return rows.slice();}
   // expand each entry into `copies` printed labels plus its "1 BEHIND".."N BEHIND"
   // stock-depth labels (the behind chain prints once per entry, not per copy)
-  function expand(list){const out=[];list.forEach(r=>{const c=copiesOf(r);for(let k=0;k<c;k++)out.push(r);const n=Math.max(0,intOf(r.behind));for(let k=1;k<=n;k++)out.push({isBehind:true,num:k,of:n,sku:r.sku,perBox:r.perBox});});return out;}
+  function expand(list){const out=[];list.forEach(r=>{if(r.isMore){out.push(r);return;}const c=copiesOf(r);for(let k=0;k<c;k++)out.push(r);const n=Math.max(0,intOf(r.behind));for(let k=1;k<=n;k++)out.push({isBehind:true,num:k,of:n,sku:r.sku,perBox:r.perBox});});return out;}
   function escq(s){return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
   // Cheap refresh: counts, selection summary and button states only. Editing a qty or
   // ticking a checkbox calls this instead of render() — rebuilding all 300 strips on
@@ -851,6 +857,9 @@ function showTab(name){
     else if(shown.length===0){list.innerHTML='<div class="card empty">Nothing left to print.</div>';}
     else{
       list.innerHTML=shown.map(({r,i})=>{
+        if(r.isMore){                                   // standalone "N MORE" tag: just a big count, no fields
+          return '<div class="strip"><div class="striphead"><label class="selwrap"><input type="checkbox" class="selbox" data-i="'+i+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+intOf(r.num)+' MORE</div><button class="pill sm dtog" data-i="'+i+'" data-act="done" title="Mark printed — removes this tag">Mark printed</button></div><div class="desc">Quick &ldquo;more&rdquo; tag &mdash; no SKU, name or qty</div><div class="rowacts"><button class="pill danger" data-i="'+i+'" data-act="rm">Remove</button></div></div>';
+        }
         const photoctl=template==="photo"
           ?'<div class="photoctl"><span class="lbl">Photo</span><div class="thumb'+(r.img?'':' empty')+'"'+(r.img?' style="background-image:url('+"'"+escq(r.img)+"'"+')"':'')+'>'+(r.img?'':'no img')+'</div><label class="pill sm">'+(r.img?'Replace':'Add photo')+'<input type="file" accept="image/*" data-i="'+i+'"></label>'+(r.img?'<button class="pill sm" data-i="'+i+'" data-act="imgclear">Clear</button>':'')+'</div>'
           :template==="shelf"
@@ -934,7 +943,8 @@ function showTab(name){
   // Move the given row indices into the archive; printed=true stamps them as printed.
   function archiveRows(indices,printed){
     const set=new Set(indices);
-    rows.forEach((r,i)=>{if(set.has(i))archive.unshift(cleanArc(Object.assign({},r,{printed:!!printed,archivedAt:Date.now()})));});
+    // "N MORE" tags carry nothing worth keeping — printing/archiving just removes them (no archive entry).
+    rows.forEach((r,i)=>{if(set.has(i)&&!r.isMore)archive.unshift(cleanArc(Object.assign({},r,{printed:!!printed,archivedAt:Date.now()})));});
     rows=rows.filter((r,i)=>!set.has(i));
     persist();saveArchive();render();
   }
@@ -1098,7 +1108,7 @@ function showTab(name){
   document.getElementById("selClear").addEventListener("click",()=>{ if(rows.some(r=>r.sel)){rows.forEach(r=>r.sel=false);render();} });
   // Backup / restore the whole labels database (entries + archive + saved SKU catalog) as one JSON file
   document.getElementById("backupBtn").addEventListener("click",()=>{
-    const data={v:2,rows:rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:r.img,behind:Math.max(0,intOf(r.behind)),copies:copiesOf(r),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||""})),archive:archive.map(cleanArc),catalog};
+    const data={v:2,rows:rows.map(r=>({sku:r.sku,desc:r.desc,perBox:r.perBox,expiry:r.expiry,img:r.img,behind:Math.max(0,intOf(r.behind)),copies:copiesOf(r),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||"",isMore:!!r.isMore,num:intOf(r.num)})),archive:archive.map(cleanArc),catalog};
     const b=new Blob([JSON.stringify(data)],{type:"application/json"}),u=URL.createObjectURL(b),a=document.createElement("a");
     a.href=u;a.download="worldmarket_labels_backup_"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(u);
   });
@@ -1107,7 +1117,7 @@ function showTab(name){
     fr.onload=()=>{let d;try{d=JSON.parse(fr.result);}catch(err){alert("That file isn't valid JSON.");return;}
       if(!d||!Array.isArray(d.rows)){alert("That doesn't look like a labels backup.");return;}
       if(!confirm("Replace your current "+rows.length+" labels"+(archive.length?(" and "+archive.length+" archived"):"")+" with the backup ("+d.rows.length+" labels"+(Array.isArray(d.archive)?(", "+d.archive.length+" archived"):"")+")?"))return;
-      rows=d.rows.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||""}));
+      rows=d.rows.map(r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:r.expiry||"",img:r.img||"",done:!!r.done,behind:Math.max(0,intOf(r.behind)),copies:Math.max(1,intOf(r.copies)||1),price:r.price||"",country:r.country||"",codes:r.codes||"",barcode:r.barcode||"",bay:r.bay||"",isMore:!!r.isMore,num:intOf(r.num)}));
       mergeDuplicates();
       if(Array.isArray(d.archive))archive=d.archive.map(cleanArc);
       if(d.catalog&&typeof d.catalog==="object"){catalog=d.catalog;saveCatalog();}
@@ -1381,6 +1391,14 @@ function showTab(name){
     document.getElementById("fSku").value="";document.getElementById("fDesc").value="";document.getElementById("fPer").value="12";document.getElementById("fExp").value="";
     document.getElementById("addForm").classList.remove("open");persist();render();
   });
+  // "N MORE" tags: generate a run of plain count labels (1 MORE … N MORE), no SKU/name/qty.
+  document.getElementById("moreToggle").addEventListener("click",()=>document.getElementById("moreForm").classList.toggle("open"));
+  document.getElementById("fMoreAdd").addEventListener("click",()=>{
+    const n=Math.max(1,Math.min(50,intOf(document.getElementById("fMore").value)));
+    for(let k=1;k<=n;k++)rows.push({sku:"",desc:"",perBox:0,expiry:"",img:"",done:false,behind:0,copies:1,isMore:true,num:k});
+    document.getElementById("moreForm").classList.remove("open");persist();render();
+    toast("Added &ldquo;1 MORE&rdquo;&hellip;&ldquo;"+n+" MORE&rdquo; tag"+(n>1?"s":""));
+  });
 
   let pendingApply=null;
   const applyBar=document.getElementById('applyBar'), applyMsg=document.getElementById('applyMsg');
@@ -1651,7 +1669,13 @@ function showTab(name){
         }
       }catch(e){drawStripText(x,yt,r);}
     }
-    function drawStrip(x,yt,r){return r.isBehind?drawBehindPDF(x,yt,r):(template==="shelf")?drawStripShelf(x,yt,r):(template==="photo")?drawStripPhoto(x,yt,r):drawStripText(x,yt,r);}
+    function drawMorePDF(x,yt,r){
+      const W=L.SW,H=L.SH,cx=x+W/2,big=String(Math.max(1,parseInt(r.num)||1))+" MORE";
+      doc.setDrawColor(20,20,20);doc.setLineWidth(1.1);doc.roundedRect(x+0.06*IN,yt+0.06*IN,W-0.12*IN,H-0.12*IN,5,5,'S');
+      let bf=40;doc.setFont("helvetica","bold");while(bf>16){doc.setFontSize(bf);if(doc.getTextWidth(big)<=W-0.5*IN)break;bf-=0.5;}
+      doc.setFont("helvetica","bold");doc.setFontSize(bf);doc.setTextColor(17,17,17);doc.text(big,cx,yt+H/2+bf*0.36,{align:"center"});
+    }
+    function drawStrip(x,yt,r){return r.isMore?drawMorePDF(x,yt,r):r.isBehind?drawBehindPDF(x,yt,r):(template==="shelf")?drawStripShelf(x,yt,r):(template==="photo")?drawStripPhoto(x,yt,r):drawStripText(x,yt,r);}
     function drawStripPhoto(x,yt,r){
       const W=L.SW,H=L.SH;
       const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasExp=!!(r.expiry);
@@ -1734,7 +1758,15 @@ function showTab(name){
     ctx.textAlign='left';ctx.strokeStyle='#d9cfbe';ctx.lineWidth=0.75;rrect(ctx,x,yt,W,H,0.09*IN);ctx.stroke();
   }
   function drawStripCanvasShelf(ctx,x,yt,r){ctx.drawImage(renderShelfCanvas(r),x,yt,LAYOUT.SW,LAYOUT.SH);}
-  function drawStripCanvas(ctx,x,yt,r){return r.isBehind?drawBehindCanvas(ctx,x,yt,r):(template==="shelf")?drawStripCanvasShelf(ctx,x,yt,r):(template==="photo")?drawStripCanvasPhoto(ctx,x,yt,r):drawStripCanvasText(ctx,x,yt,r);}
+  function drawMoreCanvas(ctx,x,yt,r){
+    const L=LAYOUT,W=L.SW,H=L.SH,cx=x+W/2,big=String(Math.max(1,parseInt(r.num)||1))+" MORE";
+    ctx.textBaseline='alphabetic';ctx.textAlign='center';ctx.setLineDash([]);
+    ctx.strokeStyle='#141414';ctx.lineWidth=1.1;rrect(ctx,x+0.06*IN,yt+0.06*IN,W-0.12*IN,H-0.12*IN,5);ctx.stroke();
+    let bf=40;while(bf>16){ctx.font='bold '+bf+'px Helvetica, Arial, sans-serif';if(ctx.measureText(big).width<=W-0.5*IN)break;bf-=0.5;}
+    ctx.font='bold '+bf+'px Helvetica, Arial, sans-serif';ctx.fillStyle='#111';ctx.fillText(big,cx,yt+H/2+bf*0.36);
+    ctx.textAlign='left';ctx.strokeStyle='#d9cfbe';ctx.lineWidth=0.75;rrect(ctx,x,yt,W,H,0.09*IN);ctx.stroke();
+  }
+  function drawStripCanvas(ctx,x,yt,r){return r.isMore?drawMoreCanvas(ctx,x,yt,r):r.isBehind?drawBehindCanvas(ctx,x,yt,r):(template==="shelf")?drawStripCanvasShelf(ctx,x,yt,r):(template==="photo")?drawStripCanvasPhoto(ctx,x,yt,r):drawStripCanvasText(ctx,x,yt,r);}
   function drawStripCanvasPhoto(ctx,x,yt,r){
     const L=LAYOUT,W=L.SW,H=L.SH;
     const per=Math.max(0,parseInt(r.perBox)||0),hasQty=per>0,hasExp=!!r.expiry;
