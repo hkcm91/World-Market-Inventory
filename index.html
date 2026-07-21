@@ -174,6 +174,7 @@
   .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom));background:var(--card2);color:var(--ink);border:1px solid var(--line);padding:12px 20px;border-radius:999px;font-weight:700;font-size:15px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:60;max-width:90vw;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.5)}
   .toast.show{opacity:1}
   .arcbox{width:28px;height:28px;accent-color:var(--accent2);cursor:pointer}
+  .strip.arc .sthumb{width:38px;height:38px;border-radius:8px;border:1px solid var(--line);background:var(--card2) no-repeat center/cover;flex:0 0 auto;margin-right:4px}
   .arcmeta{font-size:13px;color:var(--muted);margin-top:7px}
   .strip.arc .desc{min-height:0}
   /* archive entries: SKU keeps one line, action buttons take their own row */
@@ -317,7 +318,7 @@
       <label class="wflabel" for="scanExp">Expires</label>
       <input id="scanExp" type="date">
     </div>
-    <p class="note" style="margin-top:8px">Pick a workflow, then <b>scan a barcode</b>, or point at a box, shelf tag, or <b>pick-ticket label</b> (even sideways) and tap <b>&#10024; Read box</b> &mdash; it reads the text and guesses the <b>SKU</b>, <b>name</b>, <b>qty</b> and <b>expiry</b> to pre-fill for you (review before importing). No camera? Type or paste a code below.</p>
+    <p class="note" style="margin-top:8px">Pick a workflow, then <b>scan a barcode</b>, or point at a box, shelf tag, or <b>pick-ticket label</b> (even sideways) and tap <b>&#10024; Read box</b> &mdash; it reads the text and guesses the <b>SKU</b>, <b>name</b>, <b>qty</b> and <b>expiry</b> to pre-fill for you (review before importing). <b>Doing a stack?</b> Tap <b>&#9654;&#65039; Auto-read</b> and just hold the camera over each ticket &mdash; it reads them hands-free and beeps as each new SKU lands. Review the list, then <b>&#10003; Approve all &rarr; Archive</b> sends the whole batch to the Archive (photos fill in automatically). No camera? Type or paste a code below.</p>
     <details id="scanCfg" style="margin-top:8px">
       <summary style="cursor:pointer;font-size:12px;color:var(--muted);font-weight:700">&#9881;&#65039; Sync server for World Market lookups (optional)</summary>
       <input id="scanServer" class="wfselect" style="width:100%;margin-top:8px;font-weight:400;font-size:15px" placeholder="https://your-tunnel&hellip;  (reliable WM SKU + image)" autocomplete="off" inputmode="url">
@@ -334,6 +335,7 @@
       <button class="pill" id="scanFlip" style="cursor:pointer;display:none">Flip</button>
       <button class="pill" id="scanTorch" style="cursor:pointer;display:none">&#128294; Light</button>
       <button class="pill" id="scanOCR" style="cursor:pointer;background:var(--accent2);color:#fff;border-color:var(--accent2)">&#10024; Read box</button>
+      <button class="pill" id="scanAuto" style="cursor:pointer">&#9654;&#65039; Auto-read</button>
     </div>
     <div class="scanrow">
       <input id="scanCode" inputmode="numeric" placeholder="SKU / barcode" autocomplete="off">
@@ -346,6 +348,7 @@
     <div id="scanList"><div class="scanempty">Nothing scanned yet.</div></div>
     <div class="scanrow">
       <button class="pill" id="scanImport" style="background:var(--accent2);color:#fff;border-color:var(--accent2);cursor:pointer">&#11015; Import to Labels</button>
+      <button class="pill" id="scanArchive" style="background:var(--ok);color:#08221a;border-color:var(--ok);cursor:pointer;font-weight:800">&#10003; Approve all &rarr; Archive</button>
       <button class="pill" id="scanClear" style="cursor:pointer">Clear list</button>
     </div>
   </div>
@@ -814,7 +817,10 @@ function showTab(name){
     if(!archive.length){list.innerHTML='<div class="card empty">Nothing archived yet. On the <b>Labels</b> tab, check labels and tap <b>&#10003; Mark printed</b> (or <b>&#128230; Archive</b>) &mdash; they land here and drop off that list.</div>';return;}
     list.innerHTML=archive.map((r,a)=>{
       const when=r.archivedAt?new Date(r.archivedAt).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'';
-      return '<div class="strip arc"><div class="striphead"><label class="selwrap"><input type="checkbox" class="arcbox" data-a="'+a+'"'+(r.sel?' checked':'')+'></label><div class="sku">'+escq(r.sku)+'</div>'
+      const img=r.img||userPhotos[String(r.sku)]||(bundledPhotos&&bundledPhotos[String(r.sku)])||"";
+      return '<div class="strip arc"><div class="striphead"><label class="selwrap"><input type="checkbox" class="arcbox" data-a="'+a+'"'+(r.sel?' checked':'')+'></label>'
+        +(img?'<span class="sthumb" style="background-image:url(\''+escq(img)+'\')"></span>':'')
+        +'<div class="sku">'+escq(r.sku)+'</div>'
         +'<button class="pill sm arcgo" data-a="'+a+'" data-act="arcrestore">&#8617; Restore</button>'
         +'<button class="pill sm" data-a="'+a+'" data-act="arcscan">&#128247;'+(r.barcode?' &#10003;':'')+'</button>'
         +'<button class="pill sm" data-a="'+a+'" data-act="arcremove">Remove</button></div>'
@@ -893,7 +899,8 @@ function showTab(name){
   window.wmArchiveAdd=function(e){
     const sku=String(e&&e.sku||"").replace(/\D/g,"").trim(); if(!sku)return false;
     const desc=String(e.desc||e.name||"").trim();
-    const img=String(e.img||"").trim();
+    // Use the photo passed in, else any we already know for this SKU (hand-added, bundled, or catalog).
+    const img=String(e.img||"").trim()||userPhotos[sku]||(bundledPhotos&&bundledPhotos[sku])||(catalog[sku]&&catalog[sku].img)||"";
     const barcode=String(e.barcode||"").trim();
     const perBox=(e.perBox!==undefined&&e.perBox!=="")?intOf(e.perBox):undefined;
     if(/^data:/i.test(img)){try{userPhotos[sku]=img;saveUserPhotos();}catch(x){}}   // uploaded image → survives reload
@@ -903,6 +910,16 @@ function showTab(name){
     archive.unshift(cleanArc({sku,desc:desc,perBox:(perBox!==undefined?perBox:12),expiry:"",img:img,behind:0,copies:1,barcode:barcode,printed:false,decoded:true,archivedAt:Date.now()}));
     saveArchive();render();
     return true;
+  };
+  // Patch a photo onto already-archived entries by SKU (background lookup after a bulk approve).
+  window.wmArchiveSetPhoto=function(sku,url){
+    sku=String(sku||"").replace(/\D/g,"").trim();url=String(url||"").trim();
+    if(!sku||!url)return false;
+    let hit=false;
+    archive.forEach(r=>{if(String(r.sku).replace(/\D/g,"")===sku&&!r.img){r.img=url;hit=true;}});
+    if(/^data:/i.test(url)){userPhotos[sku]=url;saveUserPhotos();}else if(catalog[sku]&&!catalog[sku].img){catalog[sku].img=url;saveCatalog();}
+    if(hit){saveArchive();render();}
+    return hit;
   };
 
   /* ---- Selection helpers: build a PDF one sheet (PER_PAGE) at a time ---- */
@@ -1809,6 +1826,30 @@ function showTab(name){
     }
   });
   $("scanClear").addEventListener("click",()=>{if(buf.length&&confirm("Clear the scanned list?")){buf=[];save();render();}});
+  // Bulk approve the whole reviewed list straight into the Archive, then fill photos in the background.
+  $("scanArchive").addEventListener("click",()=>{
+    if(!buf.length)return;
+    if(!window.wmArchiveAdd){alert("Archive isn't available on this screen.");return;}
+    if(!confirm("Approve all "+buf.length+" item"+(buf.length===1?"":"s")+" and move them to the Archive?"))return;
+    const items=buf.slice();
+    let n=0;
+    items.forEach(b=>{if(window.wmArchiveAdd({sku:b.sku,name:b.name,desc:b.name,perBox:b.qty,img:b.wmImg||"",barcode:b.barcode||""}))n++;});
+    buf=[];save();render();
+    (window.wmToast||flash)(n+" approved → Archive"+(n<items.length?(" ("+(items.length-n)+" skipped — no SKU)"):""));
+    if(typeof showTab==="function")showTab("archive");
+    findArchivePhotos(items);
+  });
+  // For approved items with no photo yet, look them up on World Market and patch the archive thumbnail.
+  async function findArchivePhotos(items){
+    if(!window.wmArchiveSetPhoto)return;
+    let found=0;
+    for(const b of items){
+      if(b.wmImg||!b.sku)continue;
+      try{const wm=await wmResolve("",b.name||"");if(wm&&wm.image&&window.wmArchiveSetPhoto(b.sku,wm.image))found++;}catch(e){}
+      await new Promise(r=>setTimeout(r,350));       // gentle on the network across a big batch
+    }
+    if(found)(window.wmToast||flash)("Found "+found+" photo"+(found===1?"":"s"));
+  }
 
   /* ----- live camera scanning (native BarcodeDetector; manual entry always works) ----- */
   let stream=null,scanning=false,detector=null,facing="environment",lastCode="",lastAt=0,timer=0,torchTrack=null,torchOn=false;
@@ -1855,7 +1896,7 @@ function showTab(name){
     finally{$("scanCamBtn").disabled=false;}
   }
   function stop(){
-    scanning=false;if(timer){clearTimeout(timer);timer=0;}
+    scanning=false;if(typeof setAuto==="function")setAuto(false);if(timer){clearTimeout(timer);timer=0;}
     if(torchTrack){try{torchTrack.applyConstraints({advanced:[{torch:false}]});}catch(e){}torchTrack=null;}
     torchOn=false;$("scanTorch").innerHTML="&#128294; Light";$("scanTorch").style.display="none";
     if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}
@@ -1908,15 +1949,18 @@ function showTab(name){
   }
   // OCR the frame trying each orientation; keep the most confident reading. Upright is tried first
   // and we stop early once a reading is confident, so the common case stays fast.
-  async function recognizeOriented(cv){
-    const worker=await getWorker(),angles=[0,90,270,180];
+  async function recognizeOriented(cv,prefer){
+    const worker=await getWorker();
+    let angles=[0,90,270,180];
+    prefer=((((prefer||0)%360)+360)%360);            // try the last good angle first: a stack of
+    if(angles.includes(prefer))angles=[prefer].concat(angles.filter(a=>a!==prefer));  // same-way tickets then reads in one pass
     let best=null;
     for(const a of angles){
       let res;
       try{res=await worker.recognize(rotateCanvas(cv,a));}catch(e){continue;}
       const d=(res&&res.data)||{},conf=(typeof d.confidence==="number")?d.confidence:0,text=d.text||"";
       if(!best||conf>best.conf)best={conf,text,angle:a};
-      if(conf>=75 && /[A-Za-z]{4,}/.test(text))break;
+      if(conf>=72 && /[A-Za-z]{4,}/.test(text))break;
     }
     return best||{conf:0,text:"",angle:0};
   }
@@ -1976,9 +2020,10 @@ function showTab(name){
     name=(name||"").replace(/\s{2,}/g," ").replace(/^[^A-Za-z0-9]+/,"").trim().slice(0,60);
     return {sku,name,qty,exp};
   }
-  function stageFields(f){
+  function stageFields(f,quiet){
     const sku=String(f.sku||"").replace(/\s+/g,"").trim();
     if(!sku){
+      if(quiet)return false;                       // auto-read: skip empty frames silently
       if(f.name)$("scanName").value=f.name;
       flash("no SKU found — type it");
       alert("Couldn't read a SKU.\nRead: "+(f.name||"(no name)")+(f.qty?(" · qty "+f.qty):"")+(f.exp?(" · exp "+f.exp):"")+"\n\nType the SKU and tap Add.");
@@ -2007,6 +2052,41 @@ function showTab(name){
     }finally{btn.disabled=false;btn.innerHTML=label;}
   }
   $("scanOCR").addEventListener("click",smartRead);
+
+  /* ----- Hands-free auto-read: OCR each ticket continuously and add new SKUs on sight ----- */
+  let autoRead=false,autoBusy=false,autoTimer=0,lastGoodAngle=0,lastAutoSku="",lastAutoAt=0;
+  async function autoTick(){
+    if(!autoRead||!scanning)return;
+    if(autoBusy){autoTimer=setTimeout(autoTick,300);return;}
+    autoBusy=true;
+    try{
+      const r=await recognizeOriented(captureFrame(),lastGoodAngle);
+      const f=parseBox(r.text);
+      if(f.sku){
+        lastGoodAngle=r.angle;                       // lock onto this orientation for the next ticket
+        const now=Date.now(),dup=(f.sku===lastAutoSku&&now-lastAutoAt<4000);   // don't re-add the ticket still in frame
+        lastAutoSku=f.sku;lastAutoAt=now;
+        if(!dup)stageFields(f,true);                 // quiet: beeps + adds, no popups (buf de-dupes too)
+      }
+    }catch(e){}
+    finally{autoBusy=false;if(autoRead&&scanning)autoTimer=setTimeout(autoTick,250);}
+  }
+  function setAuto(on){
+    autoRead=!!on;const b=$("scanAuto");if(!b)return;
+    if(autoRead){
+      b.innerHTML="&#9209;&#65039; Stop auto";b.style.background="var(--accent2)";b.style.color="#fff";b.style.borderColor="var(--accent2)";
+      flash("Auto-read on — hold over each ticket until it beeps, then move to the next");
+      autoTick();
+    }else{
+      if(autoTimer){clearTimeout(autoTimer);autoTimer=0;}
+      b.innerHTML="&#9654;&#65039; Auto-read";b.style.background="";b.style.color="";b.style.borderColor="";
+    }
+  }
+  $("scanAuto").addEventListener("click",()=>{
+    if(!autoRead&&!scanning){alert("Start the camera first, then tap Auto-read and hold it over each ticket.");return;}
+    setAuto(!autoRead);
+  });
+
   window.wmScanOnTab=function(active){if(!active)stop();};   // showTab stops the camera when you leave Scan
   window.addEventListener("pagehide",stop);
   if(!supported()){$("scanPh").innerHTML='Live scanning needs Chrome/Edge on Android (or another Chromium browser).<br>You can still <b>type or paste</b> codes below.';}
