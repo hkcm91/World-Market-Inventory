@@ -1857,7 +1857,22 @@ function showTab(name){
   const supported=()=>("BarcodeDetector" in window);
   async function ensureDetector(){if(detector)return detector;if(!supported())return null;try{const f=await window.BarcodeDetector.getSupportedFormats();detector=new window.BarcodeDetector({formats:f});}catch(e){detector=null;}return detector;}
   function beep(){try{const C=window.AudioContext||window.webkitAudioContext;if(!C)return;const ac=beep._a||(beep._a=new C());const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=1200;g.gain.value=.05;o.connect(g);g.connect(ac.destination);o.start();o.stop(ac.currentTime+.07);}catch(e){}}
-  function onCode(v){v=String(v||"").replace(/\s+/g,"");if(!v)return;const now=Date.now();if(v===lastCode&&now-lastAt<2500)return;lastCode=v;lastAt=now;try{navigator.vibrate&&navigator.vibrate(30);}catch(e){}beep();addCode(v,"");}
+  function onCode(v){
+    v=String(v||"").replace(/\s+/g,"");if(!v)return;
+    const now=Date.now();if(v===lastCode&&now-lastAt<2500)return;lastCode=v;lastAt=now;
+    const bare=v.replace(/^\][A-Za-z]\d/,"");                 // strip AIM symbology id (]C1, ]E0, …)
+    const digits=bare.replace(/\D/g,"");
+    // Pick-ticket labels carry a GS1-128 shipping barcode (SSCC) and warehouse slot codes — neither
+    // is the product SKU. Don't fill the list with them; the SKU comes from Read box / Auto-read.
+    const ship=/^\]C1/i.test(v)||/^00\d{16,}$/.test(digits)||digits.length>=17;   // GS1-128 / SSCC
+    const loc=/[A-Za-z]/.test(bare)&&/-/.test(bare)&&!(window.wmCatalogGet&&window.wmCatalogGet(bare));  // C50-5-103D
+    if(ship||loc){
+      try{navigator.vibrate&&navigator.vibrate(15);}catch(e){}
+      flash((ship?"Shipping barcode":"Location code")+" — tap ✨ Read box or ▶️ Auto-read for the SKU");
+      return;
+    }
+    try{navigator.vibrate&&navigator.vibrate(30);}catch(e){}beep();addCode(bare,"");
+  }
   async function loop(){
     if(!scanning)return;
     try{if(detector){const codes=await detector.detect(video);if(codes&&codes.length)onCode(codes[0].rawValue);}}catch(e){}
