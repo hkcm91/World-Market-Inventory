@@ -1353,7 +1353,7 @@ function showTab(name){
   // Bump PHOTOS_VER whenever photos.json changes — it rides on the fetch URL so the
   // browser grabs the fresh file instead of serving a stale force-cached copy, while
   // still downloading it only once per version (not on every open).
-  const PHOTOS_VER="store071-v2";
+  const PHOTOS_VER="store071-v3";
   function autoloadBundledPhotos(){
     fetch("photos.json?v="+PHOTOS_VER,{cache:"force-cache"}).then(r=>r.ok?r.json():null).then(map=>{
       if(!map||typeof map!=="object")return;
