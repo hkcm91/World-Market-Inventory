@@ -1037,18 +1037,33 @@ function showTab(name){
   // Hooks the Scan tab uses to push scanned SKUs into the labels list (catalog-aware).
   window.wmLabelsAddRows=function(items){
     if(!Array.isArray(items))return {added:0,updated:0};
+    // Aggregate the batch per SKU first: repeated entries (or an explicit `copies`) become extra
+    // prints, so "multiple entries = multiple labels" instead of collapsing to a single one.
+    const order=[],agg=new Map();
+    items.forEach(it=>{const sku=String(it&&it.sku||"").trim();if(!sku)return;
+      let a=agg.get(sku);
+      if(!a){a={sku,desc:"",perBox:undefined,expiry:"",photo:"",barcode:"",bay:"",copies:0};agg.set(sku,a);order.push(sku);}
+      a.copies+=Math.max(1,intOf(it.copies)||1);
+      const d=String(it.desc||it.name||"").trim();if(d&&!a.desc)a.desc=d;
+      if(a.perBox===undefined&&it.perBox!==undefined&&it.perBox!=="")a.perBox=it.perBox;
+      const e=String(it.expiry||"").trim();if(e&&!a.expiry)a.expiry=e;
+      const p=String(it.photo||"").trim();if(p&&!a.photo)a.photo=p;
+      const b=String(it.barcode||"").trim();if(b&&!a.barcode)a.barcode=b;
+      const y=String(it.bay||"").trim();if(y&&!a.bay)a.bay=y;
+    });
     let added=0,updated=0;
-    items.forEach(it=>{const sku=String(it&&it.sku||"").trim();if(!sku)return;const cat=catalogGet(sku)||{};
-      const desc=String(it.desc||it.name||"").trim();
+    order.forEach(sku=>{const it=agg.get(sku),cat=catalogGet(sku)||{};
+      const desc=it.desc;
       const qtyGiven=(it.perBox!==undefined&&it.perBox!=="");
       const perBox=qtyGiven?Math.max(0,intOf(it.perBox)):(cat.perBox!==undefined?cat.perBox:12);
-      const exp=String(it.expiry||"").trim();
-      const photo=String(it.photo||"").trim();            // World Market image fetched at scan time
+      const exp=it.expiry;
+      const photo=it.photo;                               // World Market image fetched at scan time
       if(photo){try{userPhotos[sku]=photo;saveUserPhotos();}catch(e){}}   // persist it so it survives reload
-      const bc=String(it.barcode||"").trim();
-      const bay=String(it.bay||"").trim();
-      // de-dupe: a scan of a known SKU or a known product barcode updates that item
-      // (and attaches the barcode); anything unknown becomes a NEW listing
+      const bc=it.barcode;
+      const bay=it.bay;
+      const cp=Math.max(1,it.copies);                     // how many prints this SKU asked for in the batch
+      // de-dupe: a scan of a known SKU or a known product barcode updates that item (and attaches the
+      // barcode); a batch that asked for more than one adds the extra prints; unknown → a NEW listing
       const existing=rows.find(r=>r.sku===sku||(bc&&r.barcode===bc)||(r.barcode&&r.barcode===sku));
       if(existing){
         if(qtyGiven)existing.perBox=perBox;
@@ -1057,9 +1072,10 @@ function showTab(name){
         if(photo)existing.img=photo; else if(!existing.img&&cat.img)existing.img=cat.img;
         if(bc&&!existing.barcode)existing.barcode=bc;
         if(bay)existing.bay=bay;
+        if(cp>1)existing.copies=copiesOf(existing)+(cp-1);   // the existing card counts as the 1st print
         updated++;
       }else{
-        rows.push({sku,desc:desc||cat.desc||"",perBox,expiry:exp,img:photo||cat.img||"",done:false,behind:0,copies:1,price:cat.price||"",country:cat.country||"",codes:cat.codes||"",barcode:bc||cat.barcode||"",bay:bay||cat.bay||""});added++;
+        rows.push({sku,desc:desc||cat.desc||"",perBox,expiry:exp,img:photo||cat.img||"",done:false,behind:0,copies:cp,price:cat.price||"",country:cat.country||"",codes:cat.codes||"",barcode:bc||cat.barcode||"",bay:bay||cat.bay||""});added++;
       }});
     if(added+updated){persist();render();}
     return {added,updated};
@@ -1874,6 +1890,7 @@ function showTab(name){
     const list=$("scanList");
     if(!buf.length){list.innerHTML='<div class="scanempty">Nothing scanned yet.</div>';return;}
     list.innerHTML=buf.map((it,i)=>'<div class="scanitem"><span class="code">'+esc(it.sku)+'</span>'
+      +((it.copies>1)?'<span class="tag ok" title="prints '+it.copies+' labels">&times;'+it.copies+'</span>':'')
       +(it.wmImg?'<span class="sthumb" style="background-image:url(\''+esc(it.wmImg)+'\')"></span>':'')
       +'<span class="tag '+(it.known?'ok':'new')+'">'+(it.known?'in stock list':'new')+'</span>'
       +(it.wm?'<span class="tag ok" title="matched on worldmarket.com">WM</span>':(it.online?'<span class="tag ok" title="named from an online lookup">&#127760; online</span>':''))
@@ -1918,9 +1935,10 @@ function showTab(name){
   function addCode(code,name){
     code=String(code||"").replace(/\s+/g,"").trim(); if(!code)return false;
     const sku=resolveSku(code)||code;                    // map the barcode to a known SKU when we can
-    if(buf.some(b=>b.sku===sku)){flash("Already listed: "+sku);return false;}
+    const dup=buf.find(b=>b.sku===sku);                  // same SKU again = one more label to print (×N)
+    if(dup){dup.copies=(Math.max(1,parseInt(dup.copies)||1))+1;save();render();flash("✓ "+sku+" ×"+dup.copies);try{navigator.vibrate&&navigator.vibrate(20);}catch(e){}beep();return true;}
     const info=lookup(sku);
-    buf.unshift({sku,name:String(name||"").trim()||info.name,qty:info.qty,known:info.known}); save(); render();
+    buf.unshift({sku,name:String(name||"").trim()||info.name,qty:info.qty,known:info.known,copies:1}); save(); render();
     if(info.known){flash("✓ "+(info.name||sku));return true;}
     if(buf[0].name){return true;}                         // name provided manually — nothing to fetch
     const dig=String(sku).replace(/\D/g,"");
@@ -1989,7 +2007,7 @@ function showTab(name){
     const w=wf(); if(w==="preview"||!buf.length)return;
     const dest=WF[w].dest;
     if(dest==="labels"&&window.wmLabelsAddRows){
-      const r=window.wmLabelsAddRows(buf.map(b=>({sku:b.sku,name:b.name,perBox:b.qty,expiry:b.exp,photo:b.wmImg,barcode:(b.barcode||(/^\d{11,14}$/.test(String(b.sku))?String(b.sku):"")),bay:b.bay||""})));
+      const r=window.wmLabelsAddRows(buf.map(b=>({sku:b.sku,name:b.name,perBox:b.qty,expiry:b.exp,photo:b.wmImg,copies:b.copies,barcode:(b.barcode||(/^\d{11,14}$/.test(String(b.sku))?String(b.sku):"")),bay:b.bay||""})));
       buf=[];save();render();
       alert("Top Stock Inventory: "+r.added+" added"+(r.updated?(", "+r.updated+" updated (already on the list)"):"")+".");
       if(r.added||r.updated)showTab("labels");
@@ -2263,9 +2281,10 @@ function showTab(name){
       $("scanCode").focus();
       return false;
     }
-    if(buf.some(b=>b.sku===sku)){flash("already listed: "+sku);return false;}
+    const dup=buf.find(b=>b.sku===sku);                  // same SKU again = one more label to print (×N)
+    if(dup){dup.copies=(Math.max(1,parseInt(dup.copies)||1))+1;save();render();flash("✓ "+sku+" ×"+dup.copies);try{navigator.vibrate&&navigator.vibrate(30);}catch(e){}beep();return true;}
     const info=lookup(sku);
-    buf.unshift({sku,name:(f.name||"").trim()||info.name,qty:(f.qty||info.qty||""),exp:f.exp||"",known:info.known});
+    buf.unshift({sku,name:(f.name||"").trim()||info.name,qty:(f.qty||info.qty||""),exp:f.exp||"",known:info.known,copies:1});
     try{navigator.vibrate&&navigator.vibrate(30);}catch(e){}beep();
     save();render();flash("read "+sku);
     return true;
