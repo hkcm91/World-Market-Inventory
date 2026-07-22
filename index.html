@@ -1366,11 +1366,19 @@ function showTab(name){
       // afterward stays deleted (it won't come back on the next open).
       const present=new Set(rows.map(r=>r.sku));
       archive.forEach(r=>present.add(String(r.sku)));  // don't re-add SKUs you've printed & archived
-      const mk=r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:"",img:"",done:false,behind:0});
-      let added=0; b.rows.forEach(r=>{if(!present.has(String(r.sku))){rows.push(mk(r));added++;}});
+      const mk=r=>({sku:String(r.sku),desc:r.desc||"",perBox:intOf(r.perBox),expiry:"",img:"",done:false,behind:0,copies:Math.max(1,intOf(r.copies)||1)});
+      let added=0,fixed=0;
+      b.rows.forEach(r=>{
+        const sku=String(r.sku),want=Math.max(1,intOf(r.copies)||1);
+        if(!present.has(sku)){rows.push(mk(r));added++;}
+        else if(want>1){                                // top up multiples an earlier version collapsed to 1
+          const ex=rows.find(x=>x.sku===sku);
+          if(ex&&!ex.isMore&&copiesOf(ex)<want){ex.copies=want;fixed++;}
+        }
+      });
       if(b.catalog&&typeof b.catalog==="object"){for(const k in b.catalog){if(!catalog[k])catalog[k]=b.catalog[k];}saveCatalog();}
       localStorage.setItem(BUNDLEKEY,b.v);
-      if(added){persist();render();}
+      if(added+fixed){persist();render();}
     }).catch(()=>{});
   }
   // Product photos ship with the app (photos.json, same origin) and apply themselves on
