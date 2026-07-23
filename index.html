@@ -243,6 +243,7 @@
   <button class="tab active" id="tab-labels" onclick="showTab('labels')">Labels</button>
   <button class="tab" id="tab-expiry" onclick="showTab('expiry')">Expiry</button>
   <button class="tab" id="tab-scan" onclick="showTab('scan')">Scan</button>
+  <button class="tab" id="tab-video" onclick="showTab('video')">Video</button>
   <button class="tab" id="tab-decode" onclick="showTab('decode')">Decode</button>
   <button class="tab" id="tab-archive" onclick="showTab('archive')">Archive</button>
 </div>
@@ -367,6 +368,36 @@
 </div></div>
 
 <!-- ===================== DECODE TAB ===================== -->
+<!-- ===================== VIDEO TAB ===================== -->
+<div class="tabpage" id="page-video"><div class="wrap scanwrap">
+  <div class="card">
+    <h2>Video &rarr; SKU list</h2>
+    <p class="note" style="margin-top:0">Record a slow walk past your top-stock labels (hold ~1s on each). Choose the clip and tap <b>&#10024; Extract &amp; read</b> &mdash; it pulls the frames that changed <b>on this phone</b>, reads them with the same engine as <b>Read box</b>, and drops the SKUs on your <b>Scan</b> list to review &amp; import. Nothing leaves your device.</p>
+    <div class="scanrow">
+      <button class="pill" id="vidPick" style="cursor:pointer">&#127902;&#65039; Choose video</button>
+      <input id="vidFileIn" type="file" accept="video/*,.mp4,.mov,.m4v,.webm" style="display:none">
+      <span id="vidName" class="note" style="margin:0;overflow-wrap:anywhere"></span>
+    </div>
+    <div class="scanrow">
+      <input id="vidUrl" class="wfselect" style="width:100%;font-weight:400;font-size:15px" placeholder="&hellip;or paste a video URL" autocomplete="off" inputmode="url">
+    </div>
+    <p class="note" style="margin:0">A pasted URL only reads in-app if the host allows cross-origin; otherwise just <b>send the link to Claude</b> and it reads the video on its end.</p>
+    <div class="scanrow" style="align-items:center">
+      <label class="wflabel" for="vidFps">Frames/sec</label>
+      <input id="vidFps" type="number" min="1" max="6" value="2" style="width:64px;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--card2);color:var(--ink);text-align:center">
+      <label class="wflabel" for="vidMax">Max frames</label>
+      <input id="vidMax" type="number" min="4" max="60" value="24" style="width:64px;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--card2);color:var(--ink);text-align:center">
+    </div>
+    <div class="scanrow">
+      <button class="pill" id="vidRun" style="cursor:pointer;background:var(--accent2);color:#fff;border-color:var(--accent2)">&#10024; Extract &amp; read</button>
+      <button class="pill" id="vidSave" style="cursor:pointer">&#11015; Save frames</button>
+    </div>
+    <div style="height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:8px"><div id="vidBar" style="height:100%;width:0;background:var(--accent2);transition:width .2s"></div></div>
+    <p class="note" id="vidMsg" style="margin-top:6px"></p>
+    <div id="vidFrames" style="display:flex;gap:6px;overflow-x:auto;margin-top:8px"></div>
+  </div>
+</div></div>
+
 <div class="tabpage" id="page-decode"><div class="wrap decwrap">
   <div class="card">
     <h2>Food to decode <span class="badge" id="decCount">0</span></h2>
@@ -545,7 +576,7 @@ load();render();
 
 /* ================= TABS ================= */
 function showTab(name){
-  ['labels','expiry','scan','decode','archive'].forEach(function(n){
+  ['labels','expiry','scan','video','decode','archive'].forEach(function(n){
     document.getElementById('tab-'+n).classList.toggle('active',name===n);
     document.getElementById('page-'+n).classList.toggle('show',name===n);
   });
@@ -2356,6 +2387,77 @@ function showTab(name){
     if(!autoRead&&!scanning){alert("Start the camera first, then tap Auto-read and hold it over each ticket.");return;}
     setAuto(!autoRead);
   });
+
+  /* ----- Video sweep: pull distinct label frames from a clip and OCR them into the Scan list ----- */
+  const VID={file:null,frames:[]};
+  async function extractVideoFrames(src,isUrl,onProg){
+    const video=document.createElement("video");
+    video.muted=true;video.playsInline=true;video.preload="auto";
+    if(isUrl)video.crossOrigin="anonymous";
+    video.src=src;
+    await new Promise((res,rej)=>{video.onloadedmetadata=()=>res();video.onerror=()=>rej(new Error("Couldn't load that video."));});
+    const dur=video.duration;
+    if(!isFinite(dur)||dur<=0)throw new Error("Video has no readable duration.");
+    const fps=Math.max(1,Math.min(6,parseInt($("vidFps").value)||2));
+    const maxF=Math.max(4,Math.min(60,parseInt($("vidMax").value)||24));
+    const mw=1024,s=Math.min(1,mw/Math.max(video.videoWidth,video.videoHeight));
+    const big=document.createElement("canvas");big.width=Math.round(video.videoWidth*s);big.height=Math.round(video.videoHeight*s);
+    const bx=big.getContext("2d");
+    const tiny=document.createElement("canvas");tiny.width=32;tiny.height=32;
+    const tx=tiny.getContext("2d",{willReadFrequently:true});
+    const step=1/fps,stamps=[];for(let t=0;t<dur;t+=step)stamps.push(t);
+    const kept=[];let prev=null;const gate=(1-0.55)*40;
+    for(let i=0;i<stamps.length;i++){
+      if(kept.length>=maxF)break;
+      video.currentTime=stamps[i];
+      await new Promise((res)=>video.addEventListener("seeked",res,{once:true}));
+      let px;
+      try{tx.drawImage(video,0,0,32,32);px=tx.getImageData(0,0,32,32).data;}
+      catch(e){throw new Error("That URL is cross-origin and can't be read in the browser. Upload the file instead, or paste the link to Claude.");}
+      let diff=Infinity;
+      if(prev){let sum=0;for(let p=0;p<px.length;p+=4)sum+=Math.abs(px[p]-prev[p]);diff=sum/(px.length/4);}
+      if(!prev||diff>gate){
+        bx.drawImage(video,0,0,big.width,big.height);
+        const cv=document.createElement("canvas");cv.width=big.width;cv.height=big.height;cv.getContext("2d").drawImage(big,0,0);
+        kept.push({t:stamps[i],cv,url:big.toDataURL("image/jpeg",0.55)});
+        prev=px.slice();
+      }
+      onProg(Math.round(((i+1)/stamps.length)*100),kept.length);
+    }
+    if(!kept.length)throw new Error("No frames captured — try a longer clip or more frames/sec.");
+    return kept;
+  }
+  function renderVidFrames(){
+    const el=$("vidFrames");
+    el.innerHTML=VID.frames.map(f=>'<img src="'+f.url+'" title="'+f.t.toFixed(1)+'s" style="height:60px;border-radius:4px;border:1px solid var(--line);flex:0 0 auto">').join("");
+  }
+  async function runVideoSweep(){
+    const urlVal=$("vidUrl").value.trim();
+    if(!VID.file&&!urlVal){alert("Choose a video file or paste a video URL first.");return;}
+    const src=VID.file?URL.createObjectURL(VID.file):urlVal;const isUrl=!VID.file;
+    const btn=$("vidRun");btn.disabled=true;$("vidBar").style.width="0%";
+    try{
+      $("vidMsg").textContent="Stepping through the video…";
+      const frames=await extractVideoFrames(src,isUrl,(p,n)=>{$("vidBar").style.width=p+"%";$("vidMsg").textContent="Extracting frames… "+n+" kept";});
+      VID.frames=frames;renderVidFrames();
+      let added=0;
+      for(let i=0;i<frames.length;i++){
+        $("vidMsg").textContent="Reading labels… frame "+(i+1)+" of "+frames.length;
+        $("vidBar").style.width=Math.round(((i+1)/frames.length)*100)+"%";
+        try{const r=await recognizeOriented(frames[i].cv,lastGoodAngle);const f=parseBox(r.text);if(f.sku){lastGoodAngle=r.angle;if(stageFields(f,true))added++;}}catch(e){}
+      }
+      $("vidMsg").innerHTML="Done — "+added+" added. Open the <b>Scan</b> tab to review &amp; import ("+buf.length+" on the list).";
+    }catch(e){$("vidMsg").textContent="";alert(e.message||String(e));}
+    finally{btn.disabled=false;if(VID.file)try{URL.revokeObjectURL(src);}catch(e){}}
+  }
+  function downloadVidFrames(){
+    if(!VID.frames.length){alert("Extract frames first.");return;}
+    VID.frames.forEach((f,i)=>{const a=document.createElement("a");a.href=f.cv.toDataURL("image/jpeg",0.9);a.download="frame-"+String(i+1).padStart(2,"0")+"-"+f.t.toFixed(1)+"s.jpg";document.body.appendChild(a);a.click();a.remove();});
+  }
+  $("vidPick").addEventListener("click",()=>$("vidFileIn").click());
+  $("vidFileIn").addEventListener("change",e=>{VID.file=e.target.files&&e.target.files[0]||null;VID.frames=[];renderVidFrames();$("vidName").textContent=VID.file?(VID.file.name+" · "+(VID.file.size/1048576).toFixed(1)+" MB"):"";if(VID.file)$("vidUrl").value="";});
+  $("vidRun").addEventListener("click",runVideoSweep);
+  $("vidSave").addEventListener("click",downloadVidFrames);
 
   window.wmScanOnTab=function(active){if(!active)stop();};   // showTab stops the camera when you leave Scan
   window.addEventListener("pagehide",stop);
