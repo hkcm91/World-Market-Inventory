@@ -395,6 +395,7 @@
     <button id="emailBtn">Email</button>
     <button id="markBtn">&#10003; Mark printed</button>
     <button id="archiveBtn">&#128230; Archive</button>
+    <button id="archiveAllBtn">&#128230; Archive all</button>
     <button class="gold" id="moveBtn">Move dated &rarr; Expiry</button>
   </span>
   <span id="lbarArc" style="display:none">
@@ -843,6 +844,7 @@ function showTab(name){
     document.getElementById("previewBtn").disabled=none;
     document.getElementById("emailBtn").disabled=none;
     document.getElementById("markBtn").disabled=none;
+    document.getElementById("archiveAllBtn").disabled=none;
     document.getElementById("moveBtn").disabled=(t.dated===0);
   }
   function render(){
@@ -1003,6 +1005,14 @@ function showTab(name){
     toast(totalLabels+" label"+(totalLabels>1?"s":"")+" from "+back.length+" item"+(back.length>1?"s":"")+" added to Labels &rarr; already selected to print");
   }
   document.getElementById("archiveBtn").addEventListener("click",archiveSelected);
+  // Archive everything still on the list in one tap (not just the checked ones).
+  document.getElementById("archiveAllBtn").addEventListener("click",()=>{
+    if(!rows.length){alert("Nothing on the list to archive.");return;}
+    const n=rows.length;
+    if(!confirm("Move all "+n+" item"+(n===1?"":"s")+" on the list into the Archive? You can restore them anytime from the Archive tab."))return;
+    archiveRows(rows.map((r,i)=>i),false);
+    toast(n+" moved to the Archive tab");
+  });
   // Archive search: filter the list live as you type; re-render only the list so the
   // search box keeps focus. The Clear button (and Esc) empties it.
   const arcSearchEl=document.getElementById("arcSearch");
