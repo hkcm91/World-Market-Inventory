@@ -2394,33 +2394,45 @@ function showTab(name){
     const video=document.createElement("video");
     video.muted=true;video.playsInline=true;video.preload="auto";
     if(isUrl)video.crossOrigin="anonymous";
-    video.src=src;
-    await new Promise((res,rej)=>{video.onloadedmetadata=()=>res();video.onerror=()=>rej(new Error("Couldn't load that video."));});
-    const dur=video.duration;
-    if(!isFinite(dur)||dur<=0)throw new Error("Video has no readable duration.");
-    const fps=Math.max(1,Math.min(6,parseInt($("vidFps").value)||2));
-    const maxF=Math.max(4,Math.min(60,parseInt($("vidMax").value)||24));
-    const mw=1024,s=Math.min(1,mw/Math.max(video.videoWidth,video.videoHeight));
-    const big=document.createElement("canvas");big.width=Math.round(video.videoWidth*s);big.height=Math.round(video.videoHeight*s);
-    const bx=big.getContext("2d");
-    // Keep EVERY sampled frame (no change-detection dropping). If the clip has more than the
-    // frame ceiling would allow, spread the samples evenly so the whole video is still covered.
-    let step=1/fps;
-    if(dur/step>maxF)step=dur/maxF;
-    const stamps=[];for(let t=0;t<dur&&stamps.length<maxF;t+=step)stamps.push(t);
-    const kept=[];
-    for(let i=0;i<stamps.length;i++){
-      video.currentTime=stamps[i];
-      await new Promise((res)=>video.addEventListener("seeked",res,{once:true}));
-      let url;
-      try{bx.drawImage(video,0,0,big.width,big.height);url=big.toDataURL("image/jpeg",0.6);}
-      catch(e){throw new Error("That URL is cross-origin and can't be read in the browser. Upload the file instead, or paste the link to Claude.");}
-      const cv=document.createElement("canvas");cv.width=big.width;cv.height=big.height;cv.getContext("2d").drawImage(big,0,0);
-      kept.push({t:stamps[i],cv,url});
-      onProg(Math.round(((i+1)/stamps.length)*100),kept.length);
-    }
-    if(!kept.length)throw new Error("No frames captured — try a longer clip or more frames/sec.");
-    return kept;
+    const release=()=>{try{video.pause();}catch(e){}try{video.removeAttribute("src");video.load();}catch(e){}};   // free the decoder so a 2nd run works
+    try{
+      video.src=src;
+      video.load();
+      await new Promise((res,rej)=>{
+        let done=false;
+        const to=setTimeout(()=>{if(!done){done=true;rej(new Error("Video took too long to load. Reload the app (pull to refresh) and try once."));}},30000);
+        video.onloadedmetadata=()=>{if(!done){done=true;clearTimeout(to);res();}};
+        video.onerror=()=>{if(!done){done=true;clearTimeout(to);rej(new Error("Couldn't load that video. Reload the app (pull to refresh) and try once — phone browsers often fail a second video in the same session."));}};
+      });
+      const dur=video.duration;
+      if(!isFinite(dur)||dur<=0)throw new Error("Video has no readable duration.");
+      const fps=Math.max(1,Math.min(6,parseInt($("vidFps").value)||2));
+      const maxF=Math.max(4,Math.min(150,parseInt($("vidMax").value)||60));
+      const mw=1024,s=Math.min(1,mw/Math.max(video.videoWidth,video.videoHeight));
+      const big=document.createElement("canvas");big.width=Math.round(video.videoWidth*s);big.height=Math.round(video.videoHeight*s);
+      const bx=big.getContext("2d");
+      // Keep EVERY sampled frame (no change-detection dropping). If the clip has more than the
+      // frame ceiling would allow, spread the samples evenly so the whole video is still covered.
+      let step=1/fps;
+      if(dur/step>maxF)step=dur/maxF;
+      const stamps=[];for(let t=0;t<dur&&stamps.length<maxF;t+=step)stamps.push(t);
+      const kept=[];
+      for(let i=0;i<stamps.length;i++){
+        video.currentTime=stamps[i];
+        await new Promise((res,rej)=>{
+          const to=setTimeout(()=>rej(new Error("Video stalled while seeking. Reload the app and try once.")),15000);
+          video.addEventListener("seeked",()=>{clearTimeout(to);res();},{once:true});
+        });
+        let url;
+        try{bx.drawImage(video,0,0,big.width,big.height);url=big.toDataURL("image/jpeg",0.6);}
+        catch(e){throw new Error("That URL is cross-origin and can't be read in the browser. Upload the file instead, or paste the link to Claude.");}
+        const cv=document.createElement("canvas");cv.width=big.width;cv.height=big.height;cv.getContext("2d").drawImage(big,0,0);
+        kept.push({t:stamps[i],cv,url});
+        onProg(Math.round(((i+1)/stamps.length)*100),kept.length);
+      }
+      if(!kept.length)throw new Error("No frames captured — try a longer clip or more frames/sec.");
+      return kept;
+    } finally { release(); }
   }
   function renderVidFrames(){
     const el=$("vidFrames");
