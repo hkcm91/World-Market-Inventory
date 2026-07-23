@@ -372,7 +372,7 @@
 <div class="tabpage" id="page-video"><div class="wrap scanwrap">
   <div class="card">
     <h2>Video &rarr; SKU list</h2>
-    <p class="note" style="margin-top:0">Record a slow walk past your top-stock labels (hold ~1s on each). Choose the clip and tap <b>&#10024; Extract &amp; read</b> &mdash; it pulls the frames that changed <b>on this phone</b>, reads them with the same engine as <b>Read box</b>, and drops the SKUs on your <b>Scan</b> list to review &amp; import. Nothing leaves your device.</p>
+    <p class="note" style="margin-top:0">Choose a clip of your printed labels. <b>&#128196; Make frames PDF</b> steps through the whole video, keeps <b>every</b> frame (nothing dropped), and downloads them as one PDF &mdash; upload that to Claude and it reads the labels for you. (<b>Extract &amp; read</b> tries reading on this phone instead, but Claude reads them far better.)</p>
     <div class="scanrow">
       <button class="pill" id="vidPick" style="cursor:pointer">&#127902;&#65039; Choose video</button>
       <input id="vidFileIn" type="file" accept="video/*,.mp4,.mov,.m4v,.webm" style="display:none">
@@ -386,11 +386,11 @@
       <label class="wflabel" for="vidFps">Frames/sec</label>
       <input id="vidFps" type="number" min="1" max="6" value="2" style="width:64px;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--card2);color:var(--ink);text-align:center">
       <label class="wflabel" for="vidMax">Max frames</label>
-      <input id="vidMax" type="number" min="4" max="60" value="24" style="width:64px;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--card2);color:var(--ink);text-align:center">
+      <input id="vidMax" type="number" min="4" max="150" value="60" style="width:64px;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--card2);color:var(--ink);text-align:center">
     </div>
     <div class="scanrow">
-      <button class="pill" id="vidRun" style="cursor:pointer;background:var(--accent2);color:#fff;border-color:var(--accent2)">&#10024; Extract &amp; read</button>
-      <button class="pill" id="vidSave" style="cursor:pointer">&#11015; Save frames</button>
+      <button class="pill" id="vidSave" style="cursor:pointer;background:var(--accent2);color:#fff;border-color:var(--accent2)">&#128196; Make frames PDF</button>
+      <button class="pill" id="vidRun" style="cursor:pointer">&#10024; Extract &amp; read (on-device)</button>
     </div>
     <div style="height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin-top:8px"><div id="vidBar" style="height:100%;width:0;background:var(--accent2);transition:width .2s"></div></div>
     <p class="note" id="vidMsg" style="margin-top:6px"></p>
@@ -2403,25 +2403,20 @@ function showTab(name){
     const mw=1024,s=Math.min(1,mw/Math.max(video.videoWidth,video.videoHeight));
     const big=document.createElement("canvas");big.width=Math.round(video.videoWidth*s);big.height=Math.round(video.videoHeight*s);
     const bx=big.getContext("2d");
-    const tiny=document.createElement("canvas");tiny.width=32;tiny.height=32;
-    const tx=tiny.getContext("2d",{willReadFrequently:true});
-    const step=1/fps,stamps=[];for(let t=0;t<dur;t+=step)stamps.push(t);
-    const kept=[];let prev=null;const gate=(1-0.55)*40;
+    // Keep EVERY sampled frame (no change-detection dropping). If the clip has more than the
+    // frame ceiling would allow, spread the samples evenly so the whole video is still covered.
+    let step=1/fps;
+    if(dur/step>maxF)step=dur/maxF;
+    const stamps=[];for(let t=0;t<dur&&stamps.length<maxF;t+=step)stamps.push(t);
+    const kept=[];
     for(let i=0;i<stamps.length;i++){
-      if(kept.length>=maxF)break;
       video.currentTime=stamps[i];
       await new Promise((res)=>video.addEventListener("seeked",res,{once:true}));
-      let px;
-      try{tx.drawImage(video,0,0,32,32);px=tx.getImageData(0,0,32,32).data;}
+      let url;
+      try{bx.drawImage(video,0,0,big.width,big.height);url=big.toDataURL("image/jpeg",0.6);}
       catch(e){throw new Error("That URL is cross-origin and can't be read in the browser. Upload the file instead, or paste the link to Claude.");}
-      let diff=Infinity;
-      if(prev){let sum=0;for(let p=0;p<px.length;p+=4)sum+=Math.abs(px[p]-prev[p]);diff=sum/(px.length/4);}
-      if(!prev||diff>gate){
-        bx.drawImage(video,0,0,big.width,big.height);
-        const cv=document.createElement("canvas");cv.width=big.width;cv.height=big.height;cv.getContext("2d").drawImage(big,0,0);
-        kept.push({t:stamps[i],cv,url:big.toDataURL("image/jpeg",0.55)});
-        prev=px.slice();
-      }
+      const cv=document.createElement("canvas");cv.width=big.width;cv.height=big.height;cv.getContext("2d").drawImage(big,0,0);
+      kept.push({t:stamps[i],cv,url});
       onProg(Math.round(((i+1)/stamps.length)*100),kept.length);
     }
     if(!kept.length)throw new Error("No frames captured — try a longer clip or more frames/sec.");
@@ -2432,15 +2427,10 @@ function showTab(name){
     el.innerHTML=VID.frames.map(f=>'<img src="'+f.url+'" title="'+f.t.toFixed(1)+'s" style="height:60px;border-radius:4px;border:1px solid var(--line);flex:0 0 auto">').join("");
   }
   async function runVideoSweep(){
-    const urlVal=$("vidUrl").value.trim();
-    if(!VID.file&&!urlVal){alert("Choose a video file or paste a video URL first.");return;}
-    const src=VID.file?URL.createObjectURL(VID.file):urlVal;const isUrl=!VID.file;
-    const btn=$("vidRun");btn.disabled=true;$("vidBar").style.width="0%";
+    const btn=$("vidRun");btn.disabled=true;
     try{
-      $("vidMsg").textContent="Stepping through the video…";
-      const frames=await extractVideoFrames(src,isUrl,(p,n)=>{$("vidBar").style.width=p+"%";$("vidMsg").textContent="Extracting frames… "+n+" kept";});
-      VID.frames=frames;renderVidFrames();
-      let added=0;
+      if(!(await ensureFrames()))return;
+      const frames=VID.frames;let added=0;
       for(let i=0;i<frames.length;i++){
         $("vidMsg").textContent="Reading labels… frame "+(i+1)+" of "+frames.length;
         $("vidBar").style.width=Math.round(((i+1)/frames.length)*100)+"%";
@@ -2448,16 +2438,44 @@ function showTab(name){
       }
       $("vidMsg").innerHTML="Done — "+added+" added. Open the <b>Scan</b> tab to review &amp; import ("+buf.length+" on the list).";
     }catch(e){$("vidMsg").textContent="";alert(e.message||String(e));}
-    finally{btn.disabled=false;if(VID.file)try{URL.revokeObjectURL(src);}catch(e){}}
+    finally{btn.disabled=false;}
   }
-  function downloadVidFrames(){
-    if(!VID.frames.length){alert("Extract frames first.");return;}
-    VID.frames.forEach((f,i)=>{const a=document.createElement("a");a.href=f.cv.toDataURL("image/jpeg",0.9);a.download="frame-"+String(i+1).padStart(2,"0")+"-"+f.t.toFixed(1)+"s.jpg";document.body.appendChild(a);a.click();a.remove();});
+  function buildFramesPdf(){
+    const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"pt",format:"letter"});
+    const PW=612,PH=792,M=20;
+    VID.frames.forEach((f,i)=>{
+      if(i>0)doc.addPage();
+      const availW=PW-2*M,availH=PH-2*M-16;
+      const sc=Math.min(availW/f.cv.width,availH/f.cv.height),w=f.cv.width*sc,h=f.cv.height*sc;
+      doc.addImage(f.cv.toDataURL("image/jpeg",0.72),"JPEG",M+(availW-w)/2,M+16+(availH-h)/2,w,h);
+      doc.setFontSize(9);doc.setTextColor(90);doc.text("frame "+(i+1)+" / "+VID.frames.length+"  ·  "+f.t.toFixed(1)+"s",M,M+11);
+    });
+    doc.save("video-frames.pdf");
+  }
+  async function ensureFrames(){
+    if(VID.frames.length)return true;
+    if(!VID.file&&!$("vidUrl").value.trim()){alert("Choose a video file or paste a video URL first.");return false;}
+    const src=VID.file?URL.createObjectURL(VID.file):$("vidUrl").value.trim();const isUrl=!VID.file;
+    $("vidBar").style.width="0%";$("vidMsg").textContent="Stepping through the video…";
+    VID.frames=await extractVideoFrames(src,isUrl,(p,n)=>{$("vidBar").style.width=p+"%";$("vidMsg").textContent="Extracting frames… "+n+" kept";});
+    renderVidFrames();
+    if(VID.file)try{URL.revokeObjectURL(src);}catch(e){}
+    return true;
+  }
+  async function makeFramesPdf(){
+    const btn=$("vidSave");btn.disabled=true;
+    try{
+      if(!(await ensureFrames()))return;
+      $("vidMsg").textContent="Building PDF of "+VID.frames.length+" frames…";
+      buildFramesPdf();
+      $("vidMsg").innerHTML="Downloaded <b>video-frames.pdf</b> ("+VID.frames.length+" frames). Upload it to Claude to read the labels.";
+    }catch(e){$("vidMsg").textContent="";alert(e.message||String(e));}
+    finally{btn.disabled=false;}
   }
   $("vidPick").addEventListener("click",()=>$("vidFileIn").click());
   $("vidFileIn").addEventListener("change",e=>{VID.file=e.target.files&&e.target.files[0]||null;VID.frames=[];renderVidFrames();$("vidName").textContent=VID.file?(VID.file.name+" · "+(VID.file.size/1048576).toFixed(1)+" MB"):"";if(VID.file)$("vidUrl").value="";});
   $("vidRun").addEventListener("click",runVideoSweep);
-  $("vidSave").addEventListener("click",downloadVidFrames);
+  $("vidSave").addEventListener("click",makeFramesPdf);
 
   window.wmScanOnTab=function(active){if(!active)stop();};   // showTab stops the camera when you leave Scan
   window.addEventListener("pagehide",stop);
